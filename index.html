@@ -4686,6 +4686,12 @@ function placePieces(animated) {
       const piece = b[r][c];
       if (!piece) continue;
       const mesh = createPieceMesh(piece.type, piece.color);
+      // Capture the template's baked scale BEFORE any animation touches it.
+      // GLB models are normalized per piece type in ModelLoader (e.g. King
+      // lands at 2.10, Pawn at 1.16). Fallback builders use PIECE_SCALE.
+      // Every subsequent animation must multiply against this value instead
+      // of hardcoding 1.0, otherwise pieces render at their raw mesh size.
+      const baseScale = mesh.scale.x;
       const pos = boardToWorld(r, c);
       mesh.position.set(pos.x, 0, pos.z);
 
@@ -4696,7 +4702,7 @@ function placePieces(animated) {
       const baseRotY = (piece.color === 'w' ? Math.PI / 2 : -Math.PI / 2) + whiteKnightOffset;
       mesh.rotation.y = baseRotY;
 
-      mesh.userData = { row: r, col: c, type: piece.type, color: piece.color, baseRotY: baseRotY };
+      mesh.userData = { row: r, col: c, type: piece.type, color: piece.color, baseRotY: baseRotY, baseScale: baseScale };
       mesh.traverse(child => {
         if (child.isMesh) {
           child.castShadow = true;
@@ -4712,7 +4718,10 @@ function placePieces(animated) {
         const delay = (r * 8 + c) * 30;
         animations.push({
           mesh, prop: 'scale', from: 0, to: 1, duration: 400, startTime: Date.now() + delay,
-          onUpdate: (val) => { mesh.scale.set(val, val, val); }
+          onUpdate: (val) => {
+            const s = val * baseScale;
+            mesh.scale.set(s, s, s);
+          }
         });
       }
 
@@ -5269,14 +5278,17 @@ function animateMove(fromRow, fromCol, toRow, toCol, callback) {
     onComplete: () => {
       // GAME JUICE: Squash & stretch on landing
       // Phase 1: Squash (100ms) - compress Y, expand X/Z
+      // All scale ops multiply against mesh.userData.baseScale so the template's
+      // per-piece normalization (King 2.10, Pawn 1.16, etc.) is preserved.
       const squashStart = Date.now();
       const squashDuration = 100;
+      const bs = mesh.userData.baseScale || 1;
       animations.push({
         mesh, duration: squashDuration, startTime: squashStart,
         onUpdate: (sp) => {
           const squashY = 1 - 0.15 * Math.sin(sp * Math.PI); // dip to 0.85
           const squashXZ = 1 + 0.1 * Math.sin(sp * Math.PI); // expand to 1.1
-          mesh.scale.set(squashXZ, squashY, squashXZ);
+          mesh.scale.set(bs * squashXZ, bs * squashY, bs * squashXZ);
           mesh.position.y = 0.1 * (1 - sp); // settle from slight height
         },
         onComplete: () => {
@@ -5289,12 +5301,12 @@ function animateMove(fromRow, fromCol, toRow, toCol, callback) {
               // Spring overshoot on Y scale
               const springY = 1 + 0.06 * Math.sin(bp * Math.PI * 2) * (1 - bp);
               const springXZ = 1 - 0.04 * Math.sin(bp * Math.PI * 2) * (1 - bp);
-              mesh.scale.set(springXZ, springY, springXZ);
+              mesh.scale.set(bs * springXZ, bs * springY, bs * springXZ);
               mesh.position.y = 0;
             },
             onComplete: () => {
               mesh.position.set(endPos.x, 0, endPos.z);
-              mesh.scale.set(1, 1, 1);
+              mesh.scale.set(bs, bs, bs);
               pieceMeshMap[`${toRow}_${toCol}`] = mesh;
               mesh.traverse(child => {
                 if (child.isMesh) {
@@ -5929,12 +5941,15 @@ function selectPiece(row, col) {
   showValidMoves(moves);
 
   // GAME JUICE: Anticipation (50ms wind-up scale to 0.95) then pop up
+  // Scale multipliers are applied against mesh.userData.baseScale so the
+  // template normalization (King 2.10, Pawn 1.16, ...) is preserved.
   const windUpStart = Date.now();
+  const bs = mesh.userData.baseScale || 1;
   animations.push({
     mesh, duration: 50, startTime: windUpStart,
     onUpdate: (progress) => {
-      const s = 1 - 0.05 * progress; // scale down to 0.95
-      mesh.scale.set(s * PIECE_SCALE / PIECE_SCALE, s, s * PIECE_SCALE / PIECE_SCALE);
+      const s = 1 - 0.05 * progress; // scale down to 0.95x baseline
+      mesh.scale.set(bs * s, bs * s, bs * s);
     },
     onComplete: () => {
       // Then pop up with overshoot + settle
@@ -5945,13 +5960,13 @@ function selectPiece(row, col) {
           // Spring/bounce ease: overshoot then settle
           const spring = 1 - Math.pow(1 - progress, 2) * Math.cos(progress * Math.PI * 1.5);
           mesh.position.y = spring * 0.3;
-          // Scale back to normal with slight overshoot
+          // Scale back to baseline with slight overshoot
           const scaleSpring = 1 + 0.08 * Math.sin(progress * Math.PI);
-          mesh.scale.set(scaleSpring, scaleSpring, scaleSpring);
+          mesh.scale.set(bs * scaleSpring, bs * scaleSpring, bs * scaleSpring);
         },
         onComplete: () => {
           mesh.position.y = 0.3;
-          mesh.scale.set(1, 1, 1);
+          mesh.scale.set(bs, bs, bs);
         }
       });
     }
@@ -6066,10 +6081,11 @@ function executeMove(move, callback) {
         const newPiece = newBoard[toRow][toCol];
         if (newPiece) {
           const newMesh = createPieceMesh(newPiece.type, newPiece.color);
+          const newBaseScale = newMesh.scale.x;
           const pos = boardToWorld(toRow, toCol);
           newMesh.position.set(pos.x, 0, pos.z);
           newMesh.rotation.y = 0; // all pieces face camera
-          newMesh.userData = { row: toRow, col: toCol, type: newPiece.type, color: newPiece.color };
+          newMesh.userData = { row: toRow, col: toCol, type: newPiece.type, color: newPiece.color, baseScale: newBaseScale };
           newMesh.traverse(child => {
             if (child.isMesh) {
               child.castShadow = true;
@@ -6081,7 +6097,10 @@ function executeMove(move, callback) {
           newMesh.scale.set(0, 0, 0);
           animations.push({
             mesh: newMesh, duration: 300, startTime: Date.now(),
-            onUpdate: (val) => { newMesh.scale.set(val, val, val); }
+            onUpdate: (val) => {
+              const s = val * newBaseScale;
+              newMesh.scale.set(s, s, s);
+            }
           });
         }
       }
