@@ -4665,17 +4665,35 @@ function showValidMoves(moves) {
 
     let marker;
     if (isCapture) {
-      // Capture: red-gold ring around target square
-      const geo = new THREE.TorusGeometry(0.4, 0.07, 8, 24);
-      const mat = new THREE.MeshBasicMaterial({ color: 0xFF6B35, transparent: true, opacity: 0 });
+      // Capture: vivid crimson ring — thicker and wider than move markers
+      // so it reads as "danger / capture this piece" at a glance
+      const geo = new THREE.RingGeometry(0.34, 0.46, 32);
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0xFF2E3A,
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        depthTest: false,
+      });
       marker = new THREE.Mesh(geo, mat);
       marker.rotation.x = -Math.PI / 2;
+      marker.renderOrder = 999;
     } else {
-      // Move: golden dot on target square
-      const geo = new THREE.CircleGeometry(0.22, 16);
-      const mat = new THREE.MeshBasicMaterial({ color: 0xFFD700, transparent: true, opacity: 0 });
+      // Move: bright cyan annulus ring (Sheikah-glow) — high contrast
+      // against the warm board tiles. Hollow center keeps the tile readable.
+      const geo = new THREE.RingGeometry(0.26, 0.36, 28);
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0x60E5FF,
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        depthTest: false,
+      });
       marker = new THREE.Mesh(geo, mat);
       marker.rotation.x = -Math.PI / 2;
+      marker.renderOrder = 999;
     }
 
     // Fade in with slight upward motion
@@ -4685,7 +4703,7 @@ function showValidMoves(moves) {
     validMoveMarkers.push(marker);
 
     // Animate fade in
-    const targetOpacity = isCapture ? 0.7 : 0.6;
+    const targetOpacity = 0.9;
     const startTime = Date.now() + i * 30;
     animations.push({
       mesh: marker, duration: 250, startTime,
@@ -5230,10 +5248,9 @@ function animate() {
     selectionRing.material.opacity = 0.5 + 0.2 * Math.sin(now * 0.004);
   }
 
-  // Pulse valid move markers (gentle scale pulse)
+  // Pulse valid move markers (gentle scale + opacity pulse)
   for (const marker of validMoveMarkers) {
-    const baseOp = marker.geometry.type === 'TorusGeometry' ? 0.7 : 0.6;
-    marker.material.opacity = baseOp + 0.15 * Math.sin(now * 0.003);
+    marker.material.opacity = 0.85 + 0.15 * Math.sin(now * 0.003);
     const mScale = 0.95 + 0.1 * Math.sin(now * 0.004);
     marker.scale.set(mScale, mScale, 1);
   }
