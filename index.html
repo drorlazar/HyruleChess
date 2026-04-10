@@ -2836,6 +2836,19 @@ const BOARD_SIZE = 8;
 const BOARD_OFFSET = (BOARD_SIZE - 1) / 2;
 const PIECE_SCALE = 0.38;
 
+// Per-piece final-scale fine-tuning. Applied INSIDE createPieceMesh so the
+// adjusted scale is what placePieces captures into mesh.userData.baseScale,
+// which means every squash/spring/select animation inherits the new baseline
+// automatically.
+const PIECE_SCALE_ADJUST = {
+  // Back-rank pieces (both sides): -10% — they were visually overwhelming
+  'w_K': 0.90, 'w_Q': 0.90, 'w_B': 0.90, 'w_N': 0.90, 'w_R': 0.90,
+  'b_K': 0.90, 'b_Q': 0.90, 'b_B': 0.90, 'b_N': 0.90, 'b_R': 0.90,
+  // Hyrule (white) pawns felt undersized next to the new back rank — +25%
+  'w_P': 1.25,
+  // Ganon pawns keep their normalized size
+};
+
 // Animation state
 const animations = [];
 let pendingPromotion = null;
@@ -4629,6 +4642,7 @@ function buildMoblin() {
 // ============================================================
 
 function createPieceMesh(type, color) {
+  let mesh;
   // Try loaded GLB model first
   const glbModel = ModelLoader.getModel(type, color);
   if (glbModel) {
@@ -4639,30 +4653,37 @@ function createPieceMesh(type, color) {
         child.receiveShadow = true;
       }
     });
-    return glbModel;
+    mesh = glbModel;
+  } else {
+    // Fallback to primitive geometry
+    if (color === 'w') {
+      switch (type) {
+        case 'K': mesh = buildLink(); break;
+        case 'Q': mesh = buildZelda(); break;
+        case 'B': mesh = buildImpa(); break;
+        case 'N': mesh = buildEpona(); break;
+        case 'R': mesh = buildHyruleTower(); break;
+        case 'P': mesh = buildHylianSoldier(); break;
+      }
+    } else {
+      switch (type) {
+        case 'K': mesh = buildGanondorf(); break;
+        case 'Q': mesh = buildPhantomGanon(); break;
+        case 'B': mesh = buildWizzrobe(); break;
+        case 'N': mesh = buildDarknut(); break;
+        case 'R': mesh = buildGanonTower(); break;
+        case 'P': mesh = buildMoblin(); break;
+      }
+    }
+    if (!mesh) mesh = new THREE.Group();
   }
 
-  // Fallback to primitive geometry
-  if (color === 'w') {
-    switch (type) {
-      case 'K': return buildLink();
-      case 'Q': return buildZelda();
-      case 'B': return buildImpa();
-      case 'N': return buildEpona();
-      case 'R': return buildHyruleTower();
-      case 'P': return buildHylianSoldier();
-    }
-  } else {
-    switch (type) {
-      case 'K': return buildGanondorf();
-      case 'Q': return buildPhantomGanon();
-      case 'B': return buildWizzrobe();
-      case 'N': return buildDarknut();
-      case 'R': return buildGanonTower();
-      case 'P': return buildMoblin();
-    }
-  }
-  return new THREE.Group();
+  // Apply per-type final-scale fine-tuning (see PIECE_SCALE_ADJUST).
+  // Runs BEFORE placePieces captures baseScale, so animations inherit it.
+  const adjust = PIECE_SCALE_ADJUST[color + '_' + type];
+  if (adjust && adjust !== 1) mesh.scale.multiplyScalar(adjust);
+
+  return mesh;
 }
 
 // ============================================================
