@@ -8,6 +8,13 @@
 <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
 <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<!-- Post-processing chain for the Scene Editor -->
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { overflow: hidden; background: #000; font-family: 'MedievalSharp', cursive; }
@@ -232,6 +239,173 @@ canvas { display: block; }
   transition: font-size 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 #checkmateText.visible .checkmate-label { font-size: 72px; }
+
+/* ============================================================
+   SCENE EDITOR — live lighting / post-process tuning
+   ============================================================ */
+#sceneEditor {
+  position: fixed;
+  top: 56px;
+  right: 12px;
+  width: 320px;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  background: rgba(12, 8, 14, 0.92);
+  border: 1px solid rgba(220, 180, 90, 0.55);
+  border-radius: 10px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 220, 140, 0.15);
+  backdrop-filter: blur(6px);
+  color: #E8D8A8;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-size: 12px;
+  z-index: 200;
+  display: none;
+  padding: 10px 12px 12px 12px;
+}
+#sceneEditor.open { display: block; }
+#sceneEditor h2 {
+  font-family: 'MedievalSharp', cursive;
+  color: #F0C24A;
+  font-size: 16px;
+  margin-bottom: 6px;
+  letter-spacing: 0.5px;
+}
+#sceneEditor .hint {
+  color: #A89870;
+  font-size: 10px;
+  margin-bottom: 8px;
+}
+#sceneEditor details {
+  border-top: 1px solid rgba(220, 180, 90, 0.18);
+  padding: 6px 0 4px 0;
+}
+#sceneEditor details:first-of-type { border-top: none; }
+#sceneEditor summary {
+  cursor: pointer;
+  color: #F0C24A;
+  font-weight: 600;
+  padding: 4px 2px;
+  user-select: none;
+  outline: none;
+}
+#sceneEditor summary::-webkit-details-marker { color: #A07840; }
+#sceneEditor label.row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0;
+}
+#sceneEditor label.row .lbl {
+  flex: 0 0 78px;
+  color: #C8B888;
+  font-size: 11px;
+}
+#sceneEditor label.row input[type="range"] {
+  flex: 1 1 auto;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: linear-gradient(to right, #3A2A0A, #705020);
+  border-radius: 2px;
+  outline: none;
+}
+#sceneEditor label.row input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: #F0C24A;
+  border: 1px solid #2A1A05;
+  box-shadow: 0 0 4px rgba(240, 194, 74, 0.6);
+  cursor: pointer;
+}
+#sceneEditor label.row input[type="color"] {
+  flex: 0 0 32px;
+  height: 18px;
+  border: 1px solid #4A3820;
+  border-radius: 3px;
+  background: #000;
+  padding: 0;
+  cursor: pointer;
+}
+#sceneEditor label.row select {
+  flex: 1 1 auto;
+  background: #1A1208;
+  color: #E8D8A8;
+  border: 1px solid #4A3820;
+  border-radius: 3px;
+  padding: 2px 4px;
+  font-size: 11px;
+}
+#sceneEditor label.row .val {
+  flex: 0 0 42px;
+  text-align: right;
+  color: #E0B058;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+}
+#sceneEditor .toolbar {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(220, 180, 90, 0.25);
+}
+#sceneEditor .toolbar button {
+  flex: 1;
+  background: linear-gradient(#3A2A0A, #1F1405);
+  border: 1px solid #6A4A1A;
+  color: #F0C24A;
+  font-family: inherit;
+  font-size: 11px;
+  padding: 6px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+#sceneEditor .toolbar button:hover {
+  background: linear-gradient(#523A10, #2A1805);
+  color: #FFE18A;
+  box-shadow: 0 0 6px rgba(240, 194, 74, 0.4);
+}
+#sceneEditor .toast {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  background: rgba(240, 194, 74, 0.92);
+  color: #1A0E00;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+#sceneEditor .toast.show { opacity: 1; }
+
+#sceneEditorToggle {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 201;
+  background: rgba(12, 8, 14, 0.85);
+  border: 1px solid rgba(220, 180, 90, 0.55);
+  color: #F0C24A;
+  font-family: 'MedievalSharp', cursive;
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  user-select: none;
+}
+#sceneEditorToggle:hover {
+  background: rgba(30, 18, 8, 0.95);
+  box-shadow: 0 0 8px rgba(240, 194, 74, 0.5);
+}
 </style>
 </head>
 <body>
@@ -281,6 +455,239 @@ canvas { display: block; }
     <button class="hud-btn" id="btnMenu">Menu</button>
   </div>
   <div id="statusMsg"></div>
+</div>
+
+<!-- Scene Editor (toggle with E) -->
+<button id="sceneEditorToggle" title="Toggle Scene Editor (E)">✦ Edit Scene</button>
+<div id="sceneEditor">
+  <h2>Scene Editor</h2>
+  <div class="hint">Press <b>E</b> to toggle. Changes auto-save. Use <b>Copy as JS</b> to paste into source.</div>
+  <div class="toast" id="seToast">Copied!</div>
+
+  <details open>
+    <summary>Tone Mapping</summary>
+    <label class="row">
+      <span class="lbl">Mode</span>
+      <select data-se="tm.mode">
+        <option value="NoToneMapping">None</option>
+        <option value="LinearToneMapping">Linear</option>
+        <option value="ReinhardToneMapping">Reinhard</option>
+        <option value="CineonToneMapping">Cineon</option>
+        <option value="ACESFilmicToneMapping" selected>ACES Filmic</option>
+      </select>
+    </label>
+    <label class="row">
+      <span class="lbl">Exposure</span>
+      <input type="range" data-se="tm.exposure" min="0" max="3" step="0.01" value="1.15">
+      <span class="val">1.15</span>
+    </label>
+  </details>
+
+  <details>
+    <summary>Fog</summary>
+    <label class="row">
+      <span class="lbl">Density</span>
+      <input type="range" data-se="fog.density" min="0" max="0.2" step="0.001" value="0.06">
+      <span class="val">0.060</span>
+    </label>
+    <label class="row">
+      <span class="lbl">Color</span>
+      <input type="color" data-se="fog.color" value="#000000">
+    </label>
+  </details>
+
+  <details>
+    <summary>Background</summary>
+    <label class="row">
+      <span class="lbl">Inner</span>
+      <input type="color" data-se="bg.inner" value="#1A0408">
+    </label>
+    <label class="row">
+      <span class="lbl">Mid</span>
+      <input type="color" data-se="bg.mid" value="#0A0206">
+    </label>
+    <label class="row">
+      <span class="lbl">Outer</span>
+      <input type="color" data-se="bg.outer" value="#000000">
+    </label>
+  </details>
+
+  <details>
+    <summary>Ambient</summary>
+    <label class="row">
+      <span class="lbl">Intensity</span>
+      <input type="range" data-se="ambient.intensity" min="0" max="2" step="0.01" value="0.25">
+      <span class="val">0.25</span>
+    </label>
+    <label class="row">
+      <span class="lbl">Color</span>
+      <input type="color" data-se="ambient.color" value="#1A1015">
+    </label>
+  </details>
+
+  <details open>
+    <summary>Key Spot (top)</summary>
+    <label class="row">
+      <span class="lbl">Intensity</span>
+      <input type="range" data-se="keySpot.intensity" min="0" max="10" step="0.05" value="2.4">
+      <span class="val">2.40</span>
+    </label>
+    <label class="row">
+      <span class="lbl">Color</span>
+      <input type="color" data-se="keySpot.color" value="#FFE9B8">
+    </label>
+    <label class="row">
+      <span class="lbl">Angle°</span>
+      <input type="range" data-se="keySpot.angleDeg" min="5" max="80" step="0.5" value="27.7">
+      <span class="val">27.7</span>
+    </label>
+    <label class="row">
+      <span class="lbl">Penumbra</span>
+      <input type="range" data-se="keySpot.penumbra" min="0" max="1" step="0.01" value="0.65">
+      <span class="val">0.65</span>
+    </label>
+    <label class="row">
+      <span class="lbl">Distance</span>
+      <input type="range" data-se="keySpot.distance" min="5" max="60" step="0.5" value="30">
+      <span class="val">30.0</span>
+    </label>
+    <label class="row">
+      <span class="lbl">Height</span>
+      <input type="range" data-se="keySpot.y" min="2" max="30" step="0.1" value="14">
+      <span class="val">14.0</span>
+    </label>
+    <label class="row">
+      <span class="lbl">Decay</span>
+      <input type="range" data-se="keySpot.decay" min="0" max="3" step="0.05" value="1.4">
+      <span class="val">1.40</span>
+    </label>
+  </details>
+
+  <details>
+    <summary>Fill Spot (front)</summary>
+    <label class="row">
+      <span class="lbl">Intensity</span>
+      <input type="range" data-se="fillSpot.intensity" min="0" max="5" step="0.05" value="0.9">
+      <span class="val">0.90</span>
+    </label>
+    <label class="row">
+      <span class="lbl">Color</span>
+      <input type="color" data-se="fillSpot.color" value="#FFB070">
+    </label>
+    <label class="row">
+      <span class="lbl">Angle°</span>
+      <input type="range" data-se="fillSpot.angleDeg" min="5" max="80" step="0.5" value="45">
+      <span class="val">45.0</span>
+    </label>
+    <label class="row">
+      <span class="lbl">Y</span>
+      <input type="range" data-se="fillSpot.y" min="0" max="20" step="0.1" value="7">
+      <span class="val">7.0</span>
+    </label>
+    <label class="row">
+      <span class="lbl">Z</span>
+      <input type="range" data-se="fillSpot.z" min="-20" max="20" step="0.1" value="10">
+      <span class="val">10.0</span>
+    </label>
+  </details>
+
+  <details>
+    <summary>Cold Rim</summary>
+    <label class="row">
+      <span class="lbl">Intensity</span>
+      <input type="range" data-se="rimCold.intensity" min="0" max="6" step="0.05" value="1.4">
+      <span class="val">1.40</span>
+    </label>
+    <label class="row">
+      <span class="lbl">Color</span>
+      <input type="color" data-se="rimCold.color" value="#3A5CBF">
+    </label>
+    <label class="row">
+      <span class="lbl">X</span>
+      <input type="range" data-se="rimCold.x" min="-15" max="15" step="0.1" value="-6">
+      <span class="val">-6.0</span>
+    </label>
+    <label class="row">
+      <span class="lbl">Y</span>
+      <input type="range" data-se="rimCold.y" min="0" max="15" step="0.1" value="6">
+      <span class="val">6.0</span>
+    </label>
+    <label class="row">
+      <span class="lbl">Z</span>
+      <input type="range" data-se="rimCold.z" min="-15" max="15" step="0.1" value="-8">
+      <span class="val">-8.0</span>
+    </label>
+  </details>
+
+  <details>
+    <summary>Hot Rim</summary>
+    <label class="row">
+      <span class="lbl">Intensity</span>
+      <input type="range" data-se="rimHot.intensity" min="0" max="6" step="0.05" value="1.0">
+      <span class="val">1.00</span>
+    </label>
+    <label class="row">
+      <span class="lbl">Color</span>
+      <input type="color" data-se="rimHot.color" value="#C0301A">
+    </label>
+    <label class="row">
+      <span class="lbl">X</span>
+      <input type="range" data-se="rimHot.x" min="-15" max="15" step="0.1" value="7">
+      <span class="val">7.0</span>
+    </label>
+    <label class="row">
+      <span class="lbl">Y</span>
+      <input type="range" data-se="rimHot.y" min="0" max="15" step="0.1" value="5">
+      <span class="val">5.0</span>
+    </label>
+    <label class="row">
+      <span class="lbl">Z</span>
+      <input type="range" data-se="rimHot.z" min="-15" max="15" step="0.1" value="-7">
+      <span class="val">-7.0</span>
+    </label>
+  </details>
+
+  <details>
+    <summary>Board Glow</summary>
+    <label class="row">
+      <span class="lbl">Intensity</span>
+      <input type="range" data-se="boardGlow.intensity" min="0" max="3" step="0.02" value="0.35">
+      <span class="val">0.35</span>
+    </label>
+    <label class="row">
+      <span class="lbl">Color</span>
+      <input type="color" data-se="boardGlow.color" value="#FFD270">
+    </label>
+  </details>
+
+  <details open>
+    <summary>Bloom (post)</summary>
+    <label class="row">
+      <span class="lbl">Enabled</span>
+      <input type="range" data-se="bloom.enabled" min="0" max="1" step="1" value="1">
+      <span class="val">ON</span>
+    </label>
+    <label class="row">
+      <span class="lbl">Strength</span>
+      <input type="range" data-se="bloom.strength" min="0" max="3" step="0.01" value="0.55">
+      <span class="val">0.55</span>
+    </label>
+    <label class="row">
+      <span class="lbl">Radius</span>
+      <input type="range" data-se="bloom.radius" min="0" max="2" step="0.01" value="0.6">
+      <span class="val">0.60</span>
+    </label>
+    <label class="row">
+      <span class="lbl">Threshold</span>
+      <input type="range" data-se="bloom.threshold" min="0" max="1" step="0.01" value="0.82">
+      <span class="val">0.82</span>
+    </label>
+  </details>
+
+  <div class="toolbar">
+    <button id="seCopyBtn" title="Copy settings as JavaScript">Copy as JS</button>
+    <button id="seResetBtn" title="Reset to defaults">Reset</button>
+  </div>
 </div>
 
 <!-- Promotion Dialog -->
@@ -1317,6 +1724,7 @@ function initThree() {
   controls.enablePan = false;
 
   // Cinematic arena lighting — tight spot from above, cold rims for depth
+  // All lights are exposed on window.SCENE so the Scene Editor can tune them live.
 
   // Very low ambient so the scene falls off to black
   const ambientLight = new THREE.AmbientLight(0x1A1015, 0.25);
@@ -1355,6 +1763,29 @@ function initThree() {
   const boardGlow = new THREE.PointLight(0xFFD270, 0.35, 10);
   boardGlow.position.set(0, 2.2, 0);
   scene.add(boardGlow);
+
+  // --- Post-processing chain: render → UnrealBloom ---
+  const composer = new THREE.EffectComposer(renderer);
+  composer.setSize(window.innerWidth, window.innerHeight);
+  composer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  const renderPass = new THREE.RenderPass(scene, camera);
+  composer.addPass(renderPass);
+  const bloomPass = new THREE.UnrealBloomPass(
+    new THREE.Vector2(window.innerWidth, window.innerHeight),
+    0.55, // strength
+    0.6,  // radius
+    0.82  // threshold
+  );
+  composer.addPass(bloomPass);
+
+  // Expose everything the Scene Editor needs
+  window.SCENE = {
+    renderer, scene, camera, composer, bloomPass,
+    lights: { ambientLight, keySpot, fillSpot, rimCold, rimHot, boardGlow },
+    bgCanvas, bgCtx,
+  };
+  // Apply any previously saved editor state
+  if (typeof applySavedSceneConfig === 'function') applySavedSceneConfig();
 
   // Groups
   boardGroup = new THREE.Group();
@@ -1428,6 +1859,18 @@ function onResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  if (window.SCENE && window.SCENE.composer) {
+    window.SCENE.composer.setSize(window.innerWidth, window.innerHeight);
+  }
+}
+
+// Render either through the post-processing composer or straight
+function renderFrame() {
+  if (window.SCENE && window.SCENE.composer && window.SCENE.bloomEnabled !== false) {
+    window.SCENE.composer.render();
+  } else {
+    renderer.render(scene, camera);
+  }
 }
 
 // Convert board coords to 3D position
@@ -3535,7 +3978,7 @@ function animate() {
     } else {
       // Still render but freeze everything
       controls.update();
-      renderer.render(scene, camera);
+      renderFrame();
       return;
     }
   }
@@ -3618,7 +4061,296 @@ function animate() {
   }
 
   controls.update();
-  renderer.render(scene, camera);
+  renderFrame();
+}
+
+// ============================================================
+// SCENE EDITOR
+// ============================================================
+// Live-tune lighting, tone mapping, fog, background, and bloom from a
+// floating panel. Press 'E' to toggle. Settings are persisted to
+// localStorage so reloads keep your look. Use "Copy as JS" to dump
+// the current config as a snippet you can paste into initThree().
+
+const SCENE_EDITOR_KEY = 'hyruleChess.sceneEditor.v1';
+
+// Default values — must mirror the initial values in initThree() and
+// the HTML default values in the editor panel.
+const SCENE_DEFAULTS = {
+  'tm.mode': 'ACESFilmicToneMapping',
+  'tm.exposure': 1.15,
+  'fog.density': 0.06,
+  'fog.color': '#000000',
+  'bg.inner': '#1A0408',
+  'bg.mid': '#0A0206',
+  'bg.outer': '#000000',
+  'ambient.intensity': 0.25,
+  'ambient.color': '#1A1015',
+  'keySpot.intensity': 2.4,
+  'keySpot.color': '#FFE9B8',
+  'keySpot.angleDeg': 27.7,
+  'keySpot.penumbra': 0.65,
+  'keySpot.distance': 30,
+  'keySpot.y': 14,
+  'keySpot.decay': 1.4,
+  'fillSpot.intensity': 0.9,
+  'fillSpot.color': '#FFB070',
+  'fillSpot.angleDeg': 45,
+  'fillSpot.y': 7,
+  'fillSpot.z': 10,
+  'rimCold.intensity': 1.4,
+  'rimCold.color': '#3A5CBF',
+  'rimCold.x': -6, 'rimCold.y': 6, 'rimCold.z': -8,
+  'rimHot.intensity': 1.0,
+  'rimHot.color': '#C0301A',
+  'rimHot.x': 7, 'rimHot.y': 5, 'rimHot.z': -7,
+  'boardGlow.intensity': 0.35,
+  'boardGlow.color': '#FFD270',
+  'bloom.enabled': 1,
+  'bloom.strength': 0.55,
+  'bloom.radius': 0.6,
+  'bloom.threshold': 0.82,
+};
+
+function loadSavedSceneConfig() {
+  try {
+    const raw = localStorage.getItem(SCENE_EDITOR_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) { return null; }
+}
+
+function saveSceneConfig(cfg) {
+  try { localStorage.setItem(SCENE_EDITOR_KEY, JSON.stringify(cfg)); } catch (e) {}
+}
+
+// Current state — starts as defaults, merged with localStorage on load
+let sceneEditorState = Object.assign({}, SCENE_DEFAULTS);
+
+// Apply a single {key, value} to the live scene
+function applySceneValue(key, value) {
+  if (!window.SCENE) return;
+  const S = window.SCENE;
+  const { lights, composer, bloomPass, renderer, scene, bgCanvas, bgCtx } = S;
+
+  const num = (v) => typeof v === 'string' ? parseFloat(v) : v;
+
+  switch (key) {
+    case 'tm.mode':
+      if (THREE[value] !== undefined) renderer.toneMapping = THREE[value];
+      // Materials need to recompile when tone mapping changes
+      scene.traverse(obj => {
+        if (obj.material) {
+          if (Array.isArray(obj.material)) obj.material.forEach(m => m.needsUpdate = true);
+          else obj.material.needsUpdate = true;
+        }
+      });
+      break;
+    case 'tm.exposure': renderer.toneMappingExposure = num(value); break;
+    case 'fog.density':
+      if (scene.fog) scene.fog.density = num(value);
+      break;
+    case 'fog.color':
+      if (scene.fog) scene.fog.color.set(value);
+      break;
+    case 'bg.inner': case 'bg.mid': case 'bg.outer': {
+      // Rebuild the radial gradient background canvas
+      const inner = sceneEditorState['bg.inner'];
+      const mid = sceneEditorState['bg.mid'];
+      const outer = sceneEditorState['bg.outer'];
+      if (key === 'bg.inner') sceneEditorState['bg.inner'] = value;
+      if (key === 'bg.mid') sceneEditorState['bg.mid'] = value;
+      if (key === 'bg.outer') sceneEditorState['bg.outer'] = value;
+      const grad = bgCtx.createRadialGradient(512, 512, 0, 512, 512, 720);
+      grad.addColorStop(0, sceneEditorState['bg.inner']);
+      grad.addColorStop(0.35, sceneEditorState['bg.mid']);
+      grad.addColorStop(1, sceneEditorState['bg.outer']);
+      bgCtx.fillStyle = grad;
+      bgCtx.fillRect(0, 0, 1024, 1024);
+      if (scene.background && scene.background.needsUpdate !== undefined) {
+        scene.background.needsUpdate = true;
+      }
+      break;
+    }
+    case 'ambient.intensity': lights.ambientLight.intensity = num(value); break;
+    case 'ambient.color': lights.ambientLight.color.set(value); break;
+
+    case 'keySpot.intensity': lights.keySpot.intensity = num(value); break;
+    case 'keySpot.color': lights.keySpot.color.set(value); break;
+    case 'keySpot.angleDeg': lights.keySpot.angle = num(value) * Math.PI / 180; break;
+    case 'keySpot.penumbra': lights.keySpot.penumbra = num(value); break;
+    case 'keySpot.distance': lights.keySpot.distance = num(value); break;
+    case 'keySpot.y': lights.keySpot.position.y = num(value); break;
+    case 'keySpot.decay': lights.keySpot.decay = num(value); break;
+
+    case 'fillSpot.intensity': lights.fillSpot.intensity = num(value); break;
+    case 'fillSpot.color': lights.fillSpot.color.set(value); break;
+    case 'fillSpot.angleDeg': lights.fillSpot.angle = num(value) * Math.PI / 180; break;
+    case 'fillSpot.y': lights.fillSpot.position.y = num(value); break;
+    case 'fillSpot.z': lights.fillSpot.position.z = num(value); break;
+
+    case 'rimCold.intensity': lights.rimCold.intensity = num(value); break;
+    case 'rimCold.color': lights.rimCold.color.set(value); break;
+    case 'rimCold.x': lights.rimCold.position.x = num(value); break;
+    case 'rimCold.y': lights.rimCold.position.y = num(value); break;
+    case 'rimCold.z': lights.rimCold.position.z = num(value); break;
+
+    case 'rimHot.intensity': lights.rimHot.intensity = num(value); break;
+    case 'rimHot.color': lights.rimHot.color.set(value); break;
+    case 'rimHot.x': lights.rimHot.position.x = num(value); break;
+    case 'rimHot.y': lights.rimHot.position.y = num(value); break;
+    case 'rimHot.z': lights.rimHot.position.z = num(value); break;
+
+    case 'boardGlow.intensity': lights.boardGlow.intensity = num(value); break;
+    case 'boardGlow.color': lights.boardGlow.color.set(value); break;
+
+    case 'bloom.enabled': window.SCENE.bloomEnabled = !!num(value); break;
+    case 'bloom.strength': bloomPass.strength = num(value); break;
+    case 'bloom.radius': bloomPass.radius = num(value); break;
+    case 'bloom.threshold': bloomPass.threshold = num(value); break;
+  }
+  sceneEditorState[key] = value;
+}
+
+// Called from initThree() after window.SCENE is set up
+function applySavedSceneConfig() {
+  const saved = loadSavedSceneConfig();
+  if (saved) sceneEditorState = Object.assign({}, SCENE_DEFAULTS, saved);
+  for (const key in sceneEditorState) {
+    applySceneValue(key, sceneEditorState[key]);
+  }
+  // Sync the DOM inputs with the current state
+  updateEditorDOM();
+}
+
+// Set every slider/picker in the DOM to match sceneEditorState
+function updateEditorDOM() {
+  const inputs = document.querySelectorAll('#sceneEditor [data-se]');
+  inputs.forEach(el => {
+    const key = el.dataset.se;
+    if (!(key in sceneEditorState)) return;
+    const val = sceneEditorState[key];
+    if (el.tagName === 'SELECT') {
+      el.value = val;
+    } else if (el.type === 'color') {
+      el.value = val;
+    } else if (el.type === 'range') {
+      el.value = val;
+      // update the .val span next to it
+      const valSpan = el.parentElement && el.parentElement.querySelector('.val');
+      if (valSpan) {
+        if (key === 'bloom.enabled') valSpan.textContent = (+val ? 'ON' : 'OFF');
+        else valSpan.textContent = formatSceneVal(key, val);
+      }
+    }
+  });
+}
+
+function formatSceneVal(key, val) {
+  const n = parseFloat(val);
+  if (isNaN(n)) return String(val);
+  // Integer-ish keys
+  if (key === 'bloom.enabled') return (n ? 'ON' : 'OFF');
+  // Density needs more precision
+  if (key === 'fog.density') return n.toFixed(3);
+  if (key.includes('angleDeg')) return n.toFixed(1);
+  return n.toFixed(2);
+}
+
+// Generate a JavaScript snippet that reproduces the current state
+function sceneConfigAsJS() {
+  const s = sceneEditorState;
+  const lines = [];
+  lines.push('// --- Scene Editor snapshot — paste into initThree() ---');
+  lines.push(`renderer.toneMapping = THREE.${s['tm.mode']};`);
+  lines.push(`renderer.toneMappingExposure = ${(+s['tm.exposure']).toFixed(2)};`);
+  lines.push(`scene.fog = new THREE.FogExp2(0x${s['fog.color'].slice(1)}, ${(+s['fog.density']).toFixed(3)});`);
+  lines.push(`// Background gradient colors: ${s['bg.inner']} → ${s['bg.mid']} → ${s['bg.outer']}`);
+  lines.push(`ambientLight.intensity = ${(+s['ambient.intensity']).toFixed(2)};`);
+  lines.push(`ambientLight.color.set('${s['ambient.color']}');`);
+  lines.push(`keySpot.intensity = ${(+s['keySpot.intensity']).toFixed(2)};`);
+  lines.push(`keySpot.color.set('${s['keySpot.color']}');`);
+  lines.push(`keySpot.angle = ${(+s['keySpot.angleDeg']).toFixed(1)} * Math.PI / 180;`);
+  lines.push(`keySpot.penumbra = ${(+s['keySpot.penumbra']).toFixed(2)};`);
+  lines.push(`keySpot.distance = ${(+s['keySpot.distance']).toFixed(1)};`);
+  lines.push(`keySpot.decay = ${(+s['keySpot.decay']).toFixed(2)};`);
+  lines.push(`keySpot.position.set(0, ${(+s['keySpot.y']).toFixed(1)}, 0.001);`);
+  lines.push(`fillSpot.intensity = ${(+s['fillSpot.intensity']).toFixed(2)};`);
+  lines.push(`fillSpot.color.set('${s['fillSpot.color']}');`);
+  lines.push(`fillSpot.angle = ${(+s['fillSpot.angleDeg']).toFixed(1)} * Math.PI / 180;`);
+  lines.push(`fillSpot.position.set(0, ${(+s['fillSpot.y']).toFixed(1)}, ${(+s['fillSpot.z']).toFixed(1)});`);
+  lines.push(`rimCold.intensity = ${(+s['rimCold.intensity']).toFixed(2)};`);
+  lines.push(`rimCold.color.set('${s['rimCold.color']}');`);
+  lines.push(`rimCold.position.set(${(+s['rimCold.x']).toFixed(1)}, ${(+s['rimCold.y']).toFixed(1)}, ${(+s['rimCold.z']).toFixed(1)});`);
+  lines.push(`rimHot.intensity = ${(+s['rimHot.intensity']).toFixed(2)};`);
+  lines.push(`rimHot.color.set('${s['rimHot.color']}');`);
+  lines.push(`rimHot.position.set(${(+s['rimHot.x']).toFixed(1)}, ${(+s['rimHot.y']).toFixed(1)}, ${(+s['rimHot.z']).toFixed(1)});`);
+  lines.push(`boardGlow.intensity = ${(+s['boardGlow.intensity']).toFixed(2)};`);
+  lines.push(`boardGlow.color.set('${s['boardGlow.color']}');`);
+  lines.push(`bloomPass.strength = ${(+s['bloom.strength']).toFixed(2)};`);
+  lines.push(`bloomPass.radius = ${(+s['bloom.radius']).toFixed(2)};`);
+  lines.push(`bloomPass.threshold = ${(+s['bloom.threshold']).toFixed(2)};`);
+  lines.push(`// bloom enabled: ${+s['bloom.enabled'] ? 'true' : 'false'}`);
+  return lines.join('\n');
+}
+
+// Wire up DOM listeners once the page is loaded
+function initSceneEditor() {
+  const panel = document.getElementById('sceneEditor');
+  const toggle = document.getElementById('sceneEditorToggle');
+  const toast = document.getElementById('seToast');
+  if (!panel || !toggle) return;
+
+  const openPanel = () => panel.classList.add('open');
+  const closePanel = () => panel.classList.remove('open');
+  const togglePanel = () => panel.classList.toggle('open');
+
+  toggle.addEventListener('click', togglePanel);
+  window.addEventListener('keydown', (e) => {
+    // Avoid hijacking typing in inputs
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA')) return;
+    if (e.key === 'e' || e.key === 'E') togglePanel();
+    else if (e.key === 'Escape' && panel.classList.contains('open')) closePanel();
+  });
+
+  // Bind every input in the editor to its scene key
+  panel.querySelectorAll('[data-se]').forEach(el => {
+    const key = el.dataset.se;
+    const handler = () => {
+      const val = (el.type === 'range') ? parseFloat(el.value) : el.value;
+      applySceneValue(key, val);
+      const valSpan = el.parentElement && el.parentElement.querySelector('.val');
+      if (valSpan) valSpan.textContent = formatSceneVal(key, val);
+      saveSceneConfig(sceneEditorState);
+    };
+    el.addEventListener('input', handler);
+    el.addEventListener('change', handler);
+  });
+
+  // Copy as JS
+  document.getElementById('seCopyBtn').addEventListener('click', async () => {
+    const js = sceneConfigAsJS();
+    try {
+      await navigator.clipboard.writeText(js);
+      toast.textContent = 'Copied to clipboard!';
+    } catch (e) {
+      console.log(js);
+      toast.textContent = 'Copied to console (clipboard blocked)';
+    }
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 1600);
+  });
+
+  // Reset
+  document.getElementById('seResetBtn').addEventListener('click', () => {
+    sceneEditorState = Object.assign({}, SCENE_DEFAULTS);
+    for (const key in sceneEditorState) applySceneValue(key, sceneEditorState[key]);
+    updateEditorDOM();
+    saveSceneConfig(sceneEditorState);
+    toast.textContent = 'Reset to defaults';
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 1400);
+  });
 }
 
 // ============================================================
@@ -4267,6 +4999,7 @@ document.getElementById('btnBackMenu').addEventListener('click', () => {
 // INIT
 // ============================================================
 initThree();
+initSceneEditor();
 </script>
 </body>
 </html>
