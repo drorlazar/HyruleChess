@@ -13,13 +13,26 @@
         "createdAt": {
           ".validate": "(!data.exists() && newData.isNumber()) || data.val() == newData.val()"
         },
+        "lastActivity": {
+          ".validate": "newData.isNumber()"
+        },
         "host": {
           ".validate": "newData.hasChildren(['clientId','online','name'])",
-          "name": { ".validate": "newData.isString() && newData.val().length <= 16" }
+          "name":     { ".validate": "newData.isString() && newData.val().length <= 16" },
+          "clientId": { ".validate": "newData.isString() && newData.val().length <= 64" },
+          "online":   { ".validate": "newData.isBoolean()" },
+          "lastSeen": { ".validate": "newData.isNumber()" },
+          "uid":      { ".validate": "newData.isString() && newData.val().length <= 64" },
+          "$other":   { ".validate": false }
         },
         "guest": {
           ".validate": "newData.hasChildren(['clientId','online','name'])",
-          "name": { ".validate": "newData.isString() && newData.val().length <= 16" }
+          "name":     { ".validate": "newData.isString() && newData.val().length <= 16" },
+          "clientId": { ".validate": "newData.isString() && newData.val().length <= 64" },
+          "online":   { ".validate": "newData.isBoolean()" },
+          "lastSeen": { ".validate": "newData.isNumber()" },
+          "uid":      { ".validate": "newData.isString() && newData.val().length <= 64" },
+          "$other":   { ".validate": false }
         },
         "status": { ".validate": "newData.val() == 'waiting' || newData.val() == 'playing' || newData.val() == 'ended'" },
         "resign": { ".validate": "newData.val() == null || newData.val() == 'w' || newData.val() == 'b'" },

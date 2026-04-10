@@ -3,3 +3,6 @@
 screenshots/
 *.pyc
 __pycache__/
+node_modules/
+playwright-report/
+test-results/

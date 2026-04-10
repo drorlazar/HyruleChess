@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Hyrule Chess</title>
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="assets/favicon.png">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/favicon-180.png">
+<meta name="theme-color" content="#1a0e00">
 <link href="https://fonts.googleapis.com/css2?family=MedievalSharp&family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
 <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -1016,6 +1021,92 @@ canvas { display: block; }
   #audioWidget.u2 { display: none !important; }
 }
 
+/* ===== Reconnecting banner ===== */
+#reconnectBanner.u2 {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translate(-50%, -100px);
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 16px;
+  background: linear-gradient(180deg, rgba(60,24,6,.92), rgba(28,8,2,.96));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1.5px solid #c44040;
+  border-radius: 999px;
+  color: #ff9090;
+  font-family: 'MedievalSharp', serif;
+  font-size: 14px;
+  letter-spacing: 1.5px;
+  z-index: 120;
+  box-shadow: 0 6px 24px rgba(140,20,30,.45);
+  pointer-events: none;
+  transition: transform .35s cubic-bezier(.175,.885,.32,1.275);
+  white-space: nowrap;
+}
+#reconnectBanner.u2.show { transform: translate(-50%, 0); }
+#reconnectBanner.u2 .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #c44040;
+  box-shadow: 0 0 10px #c44040;
+  animation: u2breathe 1.2s ease-in-out infinite;
+}
+
+/* ===== Resume overlay (auto-resume on page load) ===== */
+#resumeOverlay.u2 {
+  position: fixed; inset: 0;
+  display: none;
+  align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at center, rgba(0,0,0,.75) 0%, rgba(0,0,0,.96) 80%);
+  z-index: 130;
+  font-family: 'MedievalSharp', serif;
+}
+#resumeOverlay.u2.show { display: flex; }
+#resumeOverlay.u2 .panel {
+  display: flex; flex-direction: column; align-items: center; gap: 18px;
+  padding: 40px 50px;
+  background: linear-gradient(180deg, rgba(30,18,6,.95), rgba(8,4,0,.98));
+  border: 1.5px solid var(--u2-gold);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.85), var(--u2-glow);
+  text-align: center;
+  max-width: 92vw;
+}
+#resumeOverlay.u2 .triforce {
+  width: 80px; height: 72px; position: relative;
+  animation: u2breathe 1.8s ease-in-out infinite;
+  filter: drop-shadow(0 0 20px rgba(255,215,0,.6));
+}
+#resumeOverlay.u2 .triforce-piece {
+  position: absolute; width: 0; height: 0;
+  border-left: 20px solid transparent;
+  border-right: 20px solid transparent;
+  border-bottom: 35px solid var(--u2-gold);
+}
+#resumeOverlay.u2 .triforce-piece:nth-child(1) { top: 0; left: 20px; }
+#resumeOverlay.u2 .triforce-piece:nth-child(2) { top: 35px; left: 0; }
+#resumeOverlay.u2 .triforce-piece:nth-child(3) { top: 35px; left: 40px; }
+#resumeOverlay.u2 .title {
+  font-size: 24px; color: var(--u2-gold); letter-spacing: 2px;
+  text-shadow: 0 0 14px rgba(255,215,0,.5);
+}
+#resumeOverlay.u2 .status {
+  font-family: 'Cinzel', serif; font-size: 13px;
+  letter-spacing: 2px; color: var(--u2-parchment-dim);
+  text-transform: uppercase;
+  min-height: 18px;
+}
+#resumeOverlay.u2 .cancel {
+  margin-top: 10px; padding: 8px 20px;
+  background: rgba(0,0,0,.4);
+  border: 1px solid var(--u2-glass-border);
+  color: var(--u2-parchment);
+  font-family: 'MedievalSharp', serif; font-size: 13px;
+  letter-spacing: 1px; cursor: pointer;
+  border-radius: 8px; transition: all .15s;
+}
+#resumeOverlay.u2 .cancel:hover { border-color: var(--u2-gold); color: var(--u2-gold); }
+
 /* ===== Turn pill (top-center) ===== */
 #hud.u2 .turn-pill {
   position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
@@ -1549,6 +1640,22 @@ canvas { display: block; }
   </div>
 
   <div id="statusMsg"></div>
+</div>
+
+<!-- Reconnecting banner (shows when Firebase connection drops) -->
+<div id="reconnectBanner" class="u2" role="status" aria-live="polite">
+  <span class="dot"></span>
+  <span class="msg">Reconnecting…</span>
+</div>
+
+<!-- Full-screen overlay while auto-resuming on page load -->
+<div id="resumeOverlay" class="u2">
+  <div class="panel">
+    <div class="triforce"><div class="triforce-piece"></div><div class="triforce-piece"></div><div class="triforce-piece"></div></div>
+    <div class="title">Reconnecting to your match</div>
+    <div class="status">Contacting Firebase…</div>
+    <button class="cancel" id="btnResumeCancel">Cancel</button>
+  </div>
 </div>
 
 <!-- Audio control widget (UI v2) -->
@@ -6490,7 +6597,11 @@ async function startGame(mode, optsOrDepth) {
   SoundEngine.playMusic('ambient');
 }
 
-function returnToMenu() {
+// hardAbandon=true clears the saved resume entry (used from Game Over → Menu,
+// resign, or any terminal state where the room can never be resumed).
+// hardAbandon=false keeps the resume entry alive so the user can come back
+// via the Resume button or auto-resume on next page load.
+function returnToMenu(hardAbandon) {
   gameActive = false;
   cpuThinking = false;
   clearPieces();
@@ -6501,7 +6612,10 @@ function returnToMenu() {
 
   // Leave any online room cleanly
   if (gameMode === 'online' && window.NetClient) {
-    try { NetClient.leaveRoom(); } catch (e) {}
+    try {
+      if (hardAbandon) NetClient.abandonRoom();
+      else             NetClient.leaveRoom();
+    } catch (e) {}
   }
   gameMode = null;
   myColor = null;
@@ -6703,7 +6817,9 @@ document.getElementById('btnPlayAgain').addEventListener('click', () => {
 
 document.getElementById('btnBackMenu').addEventListener('click', () => {
   hideGameOver();
-  returnToMenu();
+  // Game is over — clear the resume entry so the user can't accidentally
+  // try to re-enter a finished room.
+  returnToMenu(true);
 });
 
 // ============================================================
@@ -6867,6 +6983,116 @@ document.getElementById('btnBackMenu').addEventListener('click', () => {
       sel.addRange(range);
     }
   });
+})();
+
+// ============================================================
+// ONLINE RESUME / RECONNECT PLUMBING
+// ============================================================
+(function wireReconnect() {
+  if (!window.NetClient) return;
+
+  const banner = document.getElementById('reconnectBanner');
+  const bannerMsg = banner ? banner.querySelector('.msg') : null;
+
+  function showBanner(msg) {
+    if (!banner) return;
+    if (msg && bannerMsg) bannerMsg.textContent = msg;
+    banner.classList.add('show');
+  }
+  function hideBanner() {
+    if (banner) banner.classList.remove('show');
+  }
+
+  // Live connection state → banner + status hints.
+  // We only care about the state while we're in an online room.
+  NetClient.onConnectionChange((isOnline) => {
+    if (gameMode !== 'online') { hideBanner(); return; }
+    if (isOnline) {
+      showBanner('Reconnected');
+      setTimeout(hideBanner, 1200);
+    } else {
+      showBanner('Reconnecting…');
+    }
+  });
+
+  // When the tab becomes visible after being hidden (OS sleep, tab switch),
+  // nudge Firebase to re-verify presence and bump lastActivity.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && gameMode === 'online') {
+      try { NetClient.refreshPresence(); } catch (e) {}
+    }
+  });
+})();
+
+// ============================================================
+// AUTO-RESUME on page load
+// Checks localStorage for a recent room. If found, tries resumeRoom()
+// with a loading overlay. On success, transitions directly into the
+// game; on failure, falls through to the lobby with a normal
+// Resume-button affordance.
+// ============================================================
+(async function autoResume() {
+  if (!window.NetClient || !NetClient.isConfigured()) return;
+  const saved = NetClient.getSavedResume && NetClient.getSavedResume();
+  if (!saved || !saved.code) return;
+
+  // Only auto-trigger for fresh-ish sessions (within 24h). Older entries
+  // still appear as a manual Resume button in the online panel.
+  const AUTO_AGE_MS = 24 * 60 * 60 * 1000;
+  if (saved.savedAt && (Date.now() - saved.savedAt) > AUTO_AGE_MS) return;
+
+  const overlay = document.getElementById('resumeOverlay');
+  const statusEl = overlay ? overlay.querySelector('.status') : null;
+  const titleEl = overlay ? overlay.querySelector('.title') : null;
+  const cancelBtn = document.getElementById('btnResumeCancel');
+  let cancelled = false;
+
+  function setStatus(msg) { if (statusEl) statusEl.textContent = msg; }
+  function show() { if (overlay) overlay.classList.add('show'); }
+  function hide() { if (overlay) overlay.classList.remove('show'); }
+
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', () => {
+      cancelled = true;
+      hide();
+    });
+  }
+
+  show();
+  setStatus('Signing in…');
+  try {
+    // Wait for Firebase init + any model loads to settle
+    await new Promise(r => setTimeout(r, 100));
+    if (cancelled) return;
+
+    const result = await NetClient.resumeRoom(saved.code, (msg) => {
+      if (!cancelled) setStatus(msg);
+    });
+    if (cancelled) return;
+
+    // Success — transition straight into the game
+    if (titleEl) titleEl.textContent = 'Reconnected to ' + saved.code;
+    setStatus('Entering the arena…');
+    await new Promise(r => setTimeout(r, 300));
+
+    startGame('online', {
+      myColor: result.myColor,
+      myName: result.myName || saved.name || 'Player',
+      opponentName: result.opponentName || '',
+      resumeMoves: result.existingMoves || [],
+    });
+    hide();
+  } catch (e) {
+    console.warn('[autoResume] failed:', e);
+    if (titleEl) titleEl.textContent = 'Could not reconnect';
+    setStatus(e && e.message ? e.message : 'Unknown error');
+    // Leave overlay visible for 1.5s so user sees the error, then fall through
+    setTimeout(() => {
+      hide();
+      // If the error was permanent, the resume entry is already cleared.
+      // Otherwise leave it so the manual Resume button still works.
+    }, 1500);
+  }
 })();
 
 // ============================================================

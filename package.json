@@ -1,0 +1,13 @@
+{
+  "name": "hyrule-chess",
+  "version": "1.0.0",
+  "description": "A 3D Zelda-themed chess game — Hyrule vs Ganon's Forces.",
+  "private": true,
+  "scripts": {
+    "test:resume": "node scripts/test-resume.mjs",
+    "test": "npm run test:resume"
+  },
+  "devDependencies": {
+    "playwright": "^1.47.0"
+  }
+}

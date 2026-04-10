@@ -42,8 +42,12 @@ const FIREBASE_CONFIG = {
   let _myName = null;
   let _opponentName = null;
   let _clientId = null;
+  let _uid = null;
   let _lastSeq = -1;
   let _initialized = false;
+  let _connected = true;              // Firebase .info/connected state
+  let _heartbeatTimer = null;         // setInterval handle for lastSeen ping
+  let _connectionListenerAttached = false;
 
   // Listener handles so we can detach cleanly on leaveRoom
   let _handles = [];
@@ -54,13 +58,20 @@ const FIREBASE_CONFIG = {
   let _cbOpponentLeft = null;
   let _cbResign = null;
   let _cbRematchAccepted = null;
+  let _cbConnectionChange = null;     // fires with (isConnected: boolean)
+  let _cbOpponentHeartbeat = null;    // fires with (lastSeenMs: number)
 
   // ---------- Constants ----------
   const NAME_KEY = 'zledaChess.playerName';
-  const RESUME_KEY = 'zledaChess.resume';
+  const RESUME_KEY = 'zledaChess.resume.v2';  // bumped: moved session → local storage
+  const LEGACY_RESUME_KEY = 'zledaChess.resume';
   const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no confusing 0/O/I/1
   const CODE_LEN = 5;
   const NAME_MAX = 16;
+  const RESUME_TTL_MS = 7 * 24 * 60 * 60 * 1000;   // 7 days
+  const HEARTBEAT_MS = 15000;                      // 15s between presence pings
+  const RESUME_RETRIES = 3;
+  const RESUME_RETRY_BASE_MS = 600;
 
   // ---------- Helpers ----------
   function isConfigured() {
@@ -94,17 +105,47 @@ const FIREBASE_CONFIG = {
     try { localStorage.setItem(NAME_KEY, trimName(name)); } catch (e) { }
   }
 
+  // Resume storage moved from sessionStorage (tab-scoped) to localStorage so
+  // the user can come back hours or days later. Entries carry a savedAt
+  // timestamp and are expired after RESUME_TTL_MS on read. We also migrate
+  // any legacy sessionStorage entry on the first read.
   function getSavedResume() {
     try {
-      const raw = sessionStorage.getItem(RESUME_KEY);
-      return raw ? JSON.parse(raw) : null;
+      let raw = localStorage.getItem(RESUME_KEY);
+      if (!raw) {
+        // Migrate legacy sessionStorage entry (one-time, best-effort)
+        const legacy = sessionStorage.getItem(LEGACY_RESUME_KEY);
+        if (legacy) {
+          try {
+            const parsed = JSON.parse(legacy);
+            parsed.savedAt = Date.now();
+            localStorage.setItem(RESUME_KEY, JSON.stringify(parsed));
+            sessionStorage.removeItem(LEGACY_RESUME_KEY);
+            raw = JSON.stringify(parsed);
+          } catch (e) { /* ignore */ }
+        }
+      }
+      if (!raw) return null;
+      const obj = JSON.parse(raw);
+      // TTL guard
+      if (obj.savedAt && (Date.now() - obj.savedAt) > RESUME_TTL_MS) {
+        localStorage.removeItem(RESUME_KEY);
+        return null;
+      }
+      return obj;
     } catch (e) { return null; }
   }
   function saveResume(obj) {
-    try { sessionStorage.setItem(RESUME_KEY, JSON.stringify(obj)); } catch (e) { }
+    try {
+      const payload = Object.assign({}, obj, { savedAt: Date.now() });
+      localStorage.setItem(RESUME_KEY, JSON.stringify(payload));
+    } catch (e) { }
   }
   function clearResume() {
-    try { sessionStorage.removeItem(RESUME_KEY); } catch (e) { }
+    try {
+      localStorage.removeItem(RESUME_KEY);
+      sessionStorage.removeItem(LEGACY_RESUME_KEY);
+    } catch (e) { }
   }
 
   // ---------- Firebase init ----------
@@ -132,8 +173,11 @@ const FIREBASE_CONFIG = {
         // Anonymous sign-in (required by tightened database rules).
         // If the Anonymous provider isn't enabled in the Firebase console,
         // this throws "auth/operation-not-allowed" — surface a clear hint.
-        await firebase.auth().signInAnonymously();
+        const cred = await firebase.auth().signInAnonymously();
+        _uid = (cred && cred.user && cred.user.uid) ||
+               (firebase.auth().currentUser && firebase.auth().currentUser.uid) || null;
         _db = firebase.database();
+        _attachConnectionListener();
         _initialized = true;
         return true;
       } catch (e) {
@@ -177,8 +221,15 @@ const FIREBASE_CONFIG = {
     // Write the room skeleton
     await _roomRef.set({
       createdAt: firebase.database.ServerValue.TIMESTAMP,
+      lastActivity: firebase.database.ServerValue.TIMESTAMP,
       status: 'waiting',
-      host: { clientId: _clientId, online: true, name: myName },
+      host: {
+        clientId: _clientId,
+        online: true,
+        name: myName,
+        uid: _uid || '',
+        lastSeen: firebase.database.ServerValue.TIMESTAMP,
+      },
       guest: { clientId: '', online: false, name: '' },
       resign: null,
       rematch: { w: false, b: false },
@@ -189,6 +240,7 @@ const FIREBASE_CONFIG = {
 
     saveResume({ code, myColor: 'w', clientId: _clientId, name: myName });
     _attachListeners();
+    _startHeartbeat();
     return { code, myColor: 'w', myName };
   }
 
@@ -223,8 +275,11 @@ const FIREBASE_CONFIG = {
       clientId: _clientId,
       online: true,
       name: myName,
+      uid: _uid || '',
+      lastSeen: firebase.database.ServerValue.TIMESTAMP,
     });
     await _roomRef.child('status').set('playing');
+    await _roomRef.child('lastActivity').set(firebase.database.ServerValue.TIMESTAMP);
     _roomRef.child('guest/online').onDisconnect().set(false);
 
     // Read any existing moves (shouldn't be any for a fresh join, but could be for rejoin)
@@ -242,6 +297,7 @@ const FIREBASE_CONFIG = {
 
     saveResume({ code, myColor: 'b', clientId: _clientId, name: myName });
     _attachListeners();
+    _startHeartbeat();
     return {
       myColor: 'b',
       myName,
@@ -251,20 +307,42 @@ const FIREBASE_CONFIG = {
     };
   }
 
-  async function resumeRoom(code) {
-    if (!(await init())) throw new Error('Firebase init failed — check console for details');
-    const saved = getSavedResume();
-    if (!saved || saved.code !== code) throw new Error('No resume data for ' + code);
+  // Small delay helper used by the retry loop.
+  function _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+  // Inner resume routine — runs once; the outer resumeRoom() retries it with
+  // exponential backoff on transient errors. "Permanent" errors (room gone,
+  // slot taken by someone else) short-circuit out of the retry loop.
+  async function _resumeRoomOnce(code, onStatus) {
+    const saved = getSavedResume();
+    if (!saved || saved.code !== code) {
+      const err = new Error('No resume data for ' + code);
+      err.permanent = true;
+      throw err;
+    }
+
+    if (onStatus) onStatus('Reading room state…');
     const snap = await _db.ref('rooms/' + code).once('value');
     const room = snap.val();
-    if (!room) { clearResume(); throw new Error('Room expired'); }
-    if (room.status === 'ended') { clearResume(); throw new Error('Room already ended'); }
+    if (!room) {
+      clearResume();
+      const err = new Error('Room expired');
+      err.permanent = true;
+      throw err;
+    }
+    if (room.status === 'ended') {
+      clearResume();
+      const err = new Error('Room already ended');
+      err.permanent = true;
+      throw err;
+    }
 
     const slot = saved.myColor === 'w' ? 'host' : 'guest';
     if (!room[slot] || room[slot].clientId !== saved.clientId) {
       clearResume();
-      throw new Error('Slot no longer belongs to you — join as a new player');
+      const err = new Error('Slot no longer belongs to you — join as a new player');
+      err.permanent = true;
+      throw err;
     }
 
     _clientId = saved.clientId;
@@ -278,10 +356,17 @@ const FIREBASE_CONFIG = {
     _roomRef = _db.ref('rooms/' + code);
     _movesRef = _roomRef.child('moves');
 
-    // Mark ourselves back online
-    await _roomRef.child(slot + '/online').set(true);
+    if (onStatus) onStatus('Reclaiming your seat…');
+    // Mark ourselves back online + refresh presence metadata
+    await _roomRef.child(slot).update({
+      online: true,
+      uid: _uid || '',
+      lastSeen: firebase.database.ServerValue.TIMESTAMP,
+    });
     _roomRef.child(slot + '/online').onDisconnect().set(false);
+    await _roomRef.child('lastActivity').set(firebase.database.ServerValue.TIMESTAMP);
 
+    if (onStatus) onStatus('Replaying moves…');
     // Pull the full move history to replay locally
     const movesSnap = await _movesRef.once('value');
     const existingMoves = [];
@@ -296,22 +381,46 @@ const FIREBASE_CONFIG = {
     }
 
     _attachListeners();
+    _startHeartbeat();
     return {
       myColor: _myColor,
       myName: _myName,
       opponentName: _opponentName,
       existingMoves,
       status: room.status,
+      lastActivity: room.lastActivity || null,
     };
   }
 
+  // Public resume — retries transient errors with exponential backoff.
+  // onStatus is an optional function(string) that receives progress updates.
+  async function resumeRoom(code, onStatus) {
+    if (!(await init())) throw new Error('Firebase init failed — check console for details');
+    let lastErr = null;
+    for (let attempt = 0; attempt < RESUME_RETRIES; attempt++) {
+      if (attempt > 0 && onStatus) onStatus('Reconnecting (attempt ' + (attempt + 1) + '/' + RESUME_RETRIES + ')…');
+      try {
+        return await _resumeRoomOnce(code, onStatus);
+      } catch (e) {
+        lastErr = e;
+        if (e && e.permanent) throw e;
+        if (attempt < RESUME_RETRIES - 1) {
+          await _sleep(RESUME_RETRY_BASE_MS * Math.pow(2, attempt));
+        }
+      }
+    }
+    throw lastErr || new Error('Resume failed');
+  }
+
+  // Soft leave: clean up listeners and in-memory state but KEEP the resume
+  // entry so the user can come back later. Used by the "Menu" button.
   function leaveRoom() {
+    _stopHeartbeat();
     _detachListeners();
     if (_roomRef && _myColor) {
       const slot = _myColor === 'w' ? 'host' : 'guest';
       try { _roomRef.child(slot + '/online').set(false); } catch (e) { }
     }
-    clearResume();
     _roomRef = null;
     _movesRef = null;
     _roomCode = null;
@@ -320,6 +429,14 @@ const FIREBASE_CONFIG = {
     _opponentName = null;
     _clientId = null;
     _lastSeq = -1;
+  }
+
+  // Hard leave: everything leaveRoom() does PLUS clear the resume entry,
+  // so the user can no longer come back. Used for explicit resign, game
+  // over, or when the user clicks Create/Join (a fresh session).
+  function abandonRoom() {
+    leaveRoom();
+    clearResume();
   }
 
   // ---------- Move sync ----------
@@ -337,6 +454,72 @@ const FIREBASE_CONFIG = {
     };
     _lastSeq = seq;
     await _movesRef.child(String(seq)).set(payload);
+    // Bump activity timestamp so cleanup jobs know this room is alive
+    if (_roomRef) {
+      _roomRef.child('lastActivity').set(firebase.database.ServerValue.TIMESTAMP).catch(() => {});
+    }
+  }
+
+  // ---------- Connection + heartbeat ----------
+  // Single global listener on Firebase's .info/connected node. Survives
+  // across room lifecycles so a page-level UI banner can reflect network
+  // state even when no room is active.
+  function _attachConnectionListener() {
+    if (_connectionListenerAttached || !_db) return;
+    _connectionListenerAttached = true;
+    _db.ref('.info/connected').on('value', (snap) => {
+      const v = snap.val() === true;
+      if (v === _connected) return;
+      _connected = v;
+      if (_cbConnectionChange) _cbConnectionChange(_connected);
+      // When we bounce back online, refresh slot presence + lastActivity.
+      if (v && _roomRef && _myColor) {
+        const slot = _myColor === 'w' ? 'host' : 'guest';
+        try {
+          _roomRef.child(slot).update({
+            online: true,
+            lastSeen: firebase.database.ServerValue.TIMESTAMP,
+          });
+          _roomRef.child(slot + '/online').onDisconnect().set(false);
+          _roomRef.child('lastActivity').set(firebase.database.ServerValue.TIMESTAMP);
+        } catch (e) { /* ignore */ }
+      }
+    });
+  }
+
+  function _startHeartbeat() {
+    _stopHeartbeat();
+    if (!_roomRef || !_myColor) return;
+    const slot = _myColor === 'w' ? 'host' : 'guest';
+    const ping = () => {
+      if (!_roomRef) return;
+      try {
+        _roomRef.child(slot + '/lastSeen').set(firebase.database.ServerValue.TIMESTAMP);
+      } catch (e) { /* ignore */ }
+    };
+    ping(); // immediate
+    _heartbeatTimer = setInterval(ping, HEARTBEAT_MS);
+  }
+  function _stopHeartbeat() {
+    if (_heartbeatTimer) {
+      clearInterval(_heartbeatTimer);
+      _heartbeatTimer = null;
+    }
+  }
+
+  // Force a presence refresh — called from the page on visibilitychange to
+  // speed up recovery after tab suspension.
+  function refreshPresence() {
+    if (!_roomRef || !_myColor) return;
+    const slot = _myColor === 'w' ? 'host' : 'guest';
+    try {
+      _roomRef.child(slot).update({
+        online: true,
+        lastSeen: firebase.database.ServerValue.TIMESTAMP,
+      });
+      _roomRef.child(slot + '/online').onDisconnect().set(false);
+      _roomRef.child('lastActivity').set(firebase.database.ServerValue.TIMESTAMP);
+    } catch (e) { /* ignore */ }
   }
 
   function onMoveReceived(cb) { _cbMoveReceived = cb; }
@@ -344,6 +527,9 @@ const FIREBASE_CONFIG = {
   function onOpponentLeft(cb) { _cbOpponentLeft = cb; }
   function onResign(cb) { _cbResign = cb; }
   function onRematchAccepted(cb) { _cbRematchAccepted = cb; }
+  function onConnectionChange(cb) { _cbConnectionChange = cb; }
+  function onOpponentHeartbeat(cb) { _cbOpponentHeartbeat = cb; }
+  function isConnected() { return _connected; }
 
   // ---------- Resign + Rematch ----------
   async function sendResign() {
@@ -380,7 +566,7 @@ const FIREBASE_CONFIG = {
     _movesRef.on('child_added', movesCb);
     _handles.push(['moves_child_added', movesCb]);
 
-    // Opponent slot changes (joined / left)
+    // Opponent slot changes (joined / left / heartbeat)
     const otherSlot = _myColor === 'w' ? 'guest' : 'host';
     const otherRef = _roomRef.child(otherSlot);
     const otherCb = (snap) => {
@@ -393,6 +579,9 @@ const FIREBASE_CONFIG = {
       }
       if (data.online === false && _cbOpponentLeft) {
         _cbOpponentLeft('disconnect');
+      }
+      if (data.lastSeen && _cbOpponentHeartbeat) {
+        _cbOpponentHeartbeat(data.lastSeen);
       }
     };
     otherRef.on('value', otherCb);
@@ -459,16 +648,23 @@ const FIREBASE_CONFIG = {
     createRoom,
     joinRoom,
     resumeRoom,
-    leaveRoom,
+    leaveRoom,      // soft: keeps resume entry (Menu button)
+    abandonRoom,    // hard: clears resume entry (Resign, Game Over, fresh Create/Join)
 
     sendMove,
     onMoveReceived,
     onOpponentJoined,
     onOpponentLeft,
+    onOpponentHeartbeat,
 
     sendResign,
     onResign,
     sendRematchRequest,
     onRematchAccepted,
+
+    // Connection + presence
+    onConnectionChange,
+    isConnected,
+    refreshPresence,
   };
 })();
