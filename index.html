@@ -2840,10 +2840,25 @@ const PIECE_SCALE = 0.38;
 // adjusted scale is what placePieces captures into mesh.userData.baseScale,
 // which means every squash/spring/select animation inherits the new baseline
 // automatically.
+//
+// Each entry is one of:
+//   number            → multiplier applied to the template's normalized scale
+//   { target: number} → absolute scale (overrides the template normalization)
+//
+// Absolute targets are used when we want precise per-piece control without
+// caring about the GLB's raw dimensions. Multipliers are safer if the GLB
+// source is ever re-exported with different raw bounds.
 const PIECE_SCALE_ADJUST = {
-  // Back-rank pieces (both sides): -10% — they were visually overwhelming
-  'w_K': 0.90, 'w_Q': 0.90, 'w_B': 0.90, 'w_N': 0.90, 'w_R': 0.90,
-  'b_K': 0.90, 'b_Q': 0.90, 'b_B': 0.90, 'b_N': 0.90, 'b_R': 0.90,
+  // Kings: exact absolute scale 1.75 both sides
+  'w_K': { target: 1.75 }, 'b_K': { target: 1.75 },
+  // Queens: exact absolute scales
+  'w_Q': { target: 1.66 }, 'b_Q': { target: 1.65 },
+  // Ganon bishop needs to come down a bit more than the rest
+  'b_B': { target: 1.45 },
+  // Remaining back-rank pieces: -10% of template
+  'w_B': 0.90,
+  'w_N': 0.90, 'b_N': 0.90,
+  'w_R': 0.90, 'b_R': 0.90,
   // Hyrule (white) pawns felt undersized next to the new back rank — +25%
   'w_P': 1.25,
   // Ganon pawns keep their normalized size
@@ -4680,8 +4695,15 @@ function createPieceMesh(type, color) {
 
   // Apply per-type final-scale fine-tuning (see PIECE_SCALE_ADJUST).
   // Runs BEFORE placePieces captures baseScale, so animations inherit it.
-  const adjust = PIECE_SCALE_ADJUST[color + '_' + type];
-  if (adjust && adjust !== 1) mesh.scale.multiplyScalar(adjust);
+  // Supports numeric multipliers and { target: n } absolute overrides.
+  const rule = PIECE_SCALE_ADJUST[color + '_' + type];
+  if (rule) {
+    if (typeof rule === 'number') {
+      if (rule !== 1) mesh.scale.multiplyScalar(rule);
+    } else if (typeof rule.target === 'number') {
+      mesh.scale.set(rule.target, rule.target, rule.target);
+    }
+  }
 
   return mesh;
 }
