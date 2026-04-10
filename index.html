@@ -1272,38 +1272,22 @@ const ModelLoader = {
 function initThree() {
   scene = new THREE.Scene();
 
-  // Rich Zelda twilight sky
-  const canvas = document.createElement('canvas');
-  canvas.width = 512; canvas.height = 1024;
-  const gctx = canvas.getContext('2d');
-  const grad = gctx.createLinearGradient(0, 0, 0, 1024);
-  grad.addColorStop(0, '#020012');    // deep space black-blue
-  grad.addColorStop(0.15, '#0a0a30'); // dark indigo
-  grad.addColorStop(0.3, '#141452');  // royal blue
-  grad.addColorStop(0.45, '#2d1b6e'); // deep purple
-  grad.addColorStop(0.6, '#5c2d82');  // twilight magenta
-  grad.addColorStop(0.72, '#a84432'); // burnt orange
-  grad.addColorStop(0.82, '#d4762a'); // warm orange
-  grad.addColorStop(0.92, '#e8a830'); // golden
-  grad.addColorStop(1, '#f0c848');    // bright gold horizon
-  gctx.fillStyle = grad;
-  gctx.fillRect(0, 0, 512, 1024);
-  // Add subtle star dots
-  gctx.fillStyle = 'rgba(255,255,255,0.8)';
-  for (let i = 0; i < 200; i++) {
-    const x = Math.random() * 512;
-    const y = Math.random() * 400; // only in upper sky
-    const r = Math.random() * 1.5 + 0.3;
-    gctx.beginPath();
-    gctx.arc(x, y, r, 0, Math.PI * 2);
-    gctx.fill();
-  }
-  const bgTexture = new THREE.CanvasTexture(canvas);
+  // Dramatic near-black background with a subtle dark red radial glow
+  // The board is lit from above like a cinematic arena; the void falls away
+  const bgCanvas = document.createElement('canvas');
+  bgCanvas.width = 1024; bgCanvas.height = 1024;
+  const bgCtx = bgCanvas.getContext('2d');
+  const bgGrad = bgCtx.createRadialGradient(512, 512, 0, 512, 512, 720);
+  bgGrad.addColorStop(0, '#1A0408');    // faint ember red at center
+  bgGrad.addColorStop(0.35, '#0A0206'); // dark crimson black
+  bgGrad.addColorStop(1, '#000000');    // pure black at the edges
+  bgCtx.fillStyle = bgGrad;
+  bgCtx.fillRect(0, 0, 1024, 1024);
+  const bgTexture = new THREE.CanvasTexture(bgCanvas);
   scene.background = bgTexture;
 
-  // Fog - subtle, pushed far enough to not wash out the board
-  // Very light fog - just enough for depth, don't wash out the sky
-  scene.fog = new THREE.Fog(0x0a0a20, 50, 120);
+  // Dense dark fog — void beyond the arena swallows everything
+  scene.fog = new THREE.FogExp2(0x000000, 0.06);
 
   // Camera
   camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
@@ -1317,8 +1301,8 @@ function initThree() {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputEncoding = THREE.sRGBEncoding;
-  renderer.toneMapping = THREE.LinearToneMapping;
-  renderer.toneMappingExposure = 1.0;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.15;
   document.body.prepend(renderer.domElement);
 
   // Controls
@@ -1332,35 +1316,45 @@ function initThree() {
   controls.target.set(0, 0, 0);
   controls.enablePan = false;
 
-  // FIX 4: Warmer, more dramatic lighting
-  const ambientLight = new THREE.AmbientLight(0xFFF0D4, 0.35);
+  // Cinematic arena lighting — tight spot from above, cold rims for depth
+
+  // Very low ambient so the scene falls off to black
+  const ambientLight = new THREE.AmbientLight(0x1A1015, 0.25);
   scene.add(ambientLight);
 
-  const dirLight = new THREE.DirectionalLight(0xFFF8E8, 0.85);
-  dirLight.position.set(6, 15, 6);
-  dirLight.castShadow = true;
-  dirLight.shadow.mapSize.set(2048, 2048);
-  dirLight.shadow.camera.left = -8;
-  dirLight.shadow.camera.right = 8;
-  dirLight.shadow.camera.top = 8;
-  dirLight.shadow.camera.bottom = -8;
-  dirLight.shadow.camera.near = 0.5;
-  dirLight.shadow.camera.far = 30;
-  dirLight.shadow.bias = -0.001;
-  scene.add(dirLight);
+  // Key: tight warm spotlight straight down over the board
+  const keySpot = new THREE.SpotLight(0xFFE9B8, 2.4, 30, Math.PI / 6.5, 0.65, 1.4);
+  keySpot.position.set(0, 14, 0.001);
+  keySpot.target.position.set(0, 0, 0);
+  keySpot.castShadow = true;
+  keySpot.shadow.mapSize.set(2048, 2048);
+  keySpot.shadow.camera.near = 1;
+  keySpot.shadow.camera.far = 30;
+  keySpot.shadow.bias = -0.0005;
+  scene.add(keySpot);
+  scene.add(keySpot.target);
 
-  const hemiLight = new THREE.HemisphereLight(0x6666aa, 0x553311, 0.25);
-  scene.add(hemiLight);
+  // Secondary warm fill from the front to keep faces readable
+  const fillSpot = new THREE.SpotLight(0xFFB070, 0.9, 28, Math.PI / 4, 0.6, 1.5);
+  fillSpot.position.set(0, 7, 10);
+  fillSpot.target.position.set(0, 0, 0);
+  scene.add(fillSpot);
+  scene.add(fillSpot.target);
 
-  // Warm point light directly above board center
-  const boardGlow = new THREE.PointLight(0xFFD700, 0.2, 20);
-  boardGlow.position.set(0, 8, 0);
+  // Cold blue rim from behind/left — epic silhouette edge on Ganon's side
+  const rimCold = new THREE.PointLight(0x3A5CBF, 1.4, 24);
+  rimCold.position.set(-6, 6, -8);
+  scene.add(rimCold);
+
+  // Crimson rim from behind/right — ember light hinting at conflict
+  const rimHot = new THREE.PointLight(0xC0301A, 1.0, 22);
+  rimHot.position.set(7, 5, -7);
+  scene.add(rimHot);
+
+  // Faint golden board glow — ties the gold inlays together
+  const boardGlow = new THREE.PointLight(0xFFD270, 0.35, 10);
+  boardGlow.position.set(0, 2.2, 0);
   scene.add(boardGlow);
-
-  // Subtle blue rim light behind for depth
-  const rimLight = new THREE.PointLight(0x4466AA, 0.3, 25);
-  rimLight.position.set(-5, 8, -8);
-  scene.add(rimLight);
 
   // Groups
   boardGroup = new THREE.Group();
@@ -1374,7 +1368,6 @@ function initThree() {
 
   buildBoard();
   createGroundPlane();
-  createStars();
   createParticles();
 
   // Events
@@ -1452,30 +1445,50 @@ function worldToBoard(pos) {
 // FIX 7: GROUND PLANE AND FIX 3: STARS
 // ============================================================
 function createGroundPlane() {
-  // Radial gradient ground that fades to transparent at edges
-  const groundCanvas = document.createElement('canvas');
-  groundCanvas.width = 512; groundCanvas.height = 512;
-  const gctx = groundCanvas.getContext('2d');
-  const radGrad = gctx.createRadialGradient(256, 256, 0, 256, 256, 256);
-  radGrad.addColorStop(0, 'rgba(30, 20, 15, 0.8)');
-  radGrad.addColorStop(0.5, 'rgba(20, 12, 8, 0.5)');
-  radGrad.addColorStop(1, 'rgba(10, 5, 5, 0)');
-  gctx.fillStyle = radGrad;
-  gctx.fillRect(0, 0, 512, 512);
-  const groundTex = new THREE.CanvasTexture(groundCanvas);
+  // Hyrule map floor — the board sits on top of the kingdom
+  // Kept deliberately modest in size so the map is a *foundation*, not the subject.
+  const texLoader = new THREE.TextureLoader();
+  const mapTex = texLoader.load('assets/textures/hyrule_map.png');
+  mapTex.encoding = THREE.sRGBEncoding;
+  mapTex.anisotropy = 16;
 
-  const groundGeo = new THREE.PlaneGeometry(25, 25);
+  const groundGeo = new THREE.PlaneGeometry(22, 22);
   const groundMat = new THREE.MeshStandardMaterial({
-    map: groundTex,
-    roughness: 0.95,
-    metalness: 0.0,
-    transparent: true,
+    map: mapTex,
+    roughness: 0.88,
+    metalness: 0.05,
+    color: 0x8A6840, // dim sepia tint so the spotlight dramatizes the center
   });
   const ground = new THREE.Mesh(groundGeo, groundMat);
   ground.rotation.x = -Math.PI / 2;
-  ground.position.y = -0.5;
+  ground.position.y = -0.55;
   ground.receiveShadow = true;
   scene.add(ground);
+
+  // Aggressive dark vignette — only the immediate footprint of the board is visible,
+  // everything beyond fades into the void
+  const vignetteCanvas = document.createElement('canvas');
+  vignetteCanvas.width = 512; vignetteCanvas.height = 512;
+  const vctx = vignetteCanvas.getContext('2d');
+  const vGrad = vctx.createRadialGradient(256, 256, 50, 256, 256, 256);
+  vGrad.addColorStop(0, 'rgba(0,0,0,0)');
+  vGrad.addColorStop(0.28, 'rgba(0,0,0,0.15)');
+  vGrad.addColorStop(0.55, 'rgba(0,0,0,0.65)');
+  vGrad.addColorStop(0.85, 'rgba(0,0,0,0.95)');
+  vGrad.addColorStop(1, 'rgba(0,0,0,1)');
+  vctx.fillStyle = vGrad;
+  vctx.fillRect(0, 0, 512, 512);
+  const vignetteTex = new THREE.CanvasTexture(vignetteCanvas);
+  const vignetteGeo = new THREE.PlaneGeometry(22, 22);
+  const vignetteMat = new THREE.MeshBasicMaterial({
+    map: vignetteTex,
+    transparent: true,
+    depthWrite: false,
+  });
+  const vignette = new THREE.Mesh(vignetteGeo, vignetteMat);
+  vignette.rotation.x = -Math.PI / 2;
+  vignette.position.y = -0.54;
+  scene.add(vignette);
 }
 
 function createStars() {
@@ -1503,9 +1516,9 @@ function createStars() {
 // BUILD THE BOARD
 // ============================================================
 function buildBoard() {
-  // FIX 2: Richer, more saturated tile colors
-  const lightColor = 0xB8994E; // warm sand/gold (darkened to prevent wash-out)
-  const darkColor = 0x2D5A1E;  // deep forest green
+  // Richer, more saturated tile colors — tuned to resist the bright key spotlight
+  const lightColor = 0x7A5E28; // deep amber gold
+  const darkColor = 0x163A0E;  // deep emerald forest
 
   // FIX 9: Tile size slightly smaller for gap lines
   const tileRenderSize = TILE_SIZE * 0.97;
@@ -1529,25 +1542,37 @@ function buildBoard() {
     }
   }
 
-  // FIX 9: Thin dark border lines between tiles (grid lines on board surface)
-  const lineMat = new THREE.MeshBasicMaterial({ color: 0x1A0E00 });
-  // Horizontal lines (along X, stepping in Z)
+  // Thin gold inlay grid lines between tiles — match the edge trim
+  const gridLineMat = new THREE.MeshStandardMaterial({
+    color: 0xF0C24A,
+    emissive: 0x7A5000,
+    emissiveIntensity: 0.6,
+    metalness: 1.0,
+    roughness: 0.15,
+  });
+  // Horizontal lines (along X, stepping in Z) — raised slightly above tile top
   for (let r = 0; r <= 8; r++) {
-    const lineGeo = new THREE.BoxGeometry(TILE_SIZE * 8, 0.101, 0.02);
-    const line = new THREE.Mesh(lineGeo, lineMat);
-    line.position.set(0, -0.05, r - BOARD_OFFSET - 0.5);
+    const lineGeo = new THREE.BoxGeometry(TILE_SIZE * 8, 0.025, 0.05);
+    const line = new THREE.Mesh(lineGeo, gridLineMat);
+    line.position.set(0, 0.012, r - BOARD_OFFSET - 0.5);
     boardGroup.add(line);
   }
   // Vertical lines (along Z, stepping in X)
   for (let c = 0; c <= 8; c++) {
-    const lineGeo = new THREE.BoxGeometry(0.02, 0.101, TILE_SIZE * 8);
-    const line = new THREE.Mesh(lineGeo, lineMat);
-    line.position.set(c - BOARD_OFFSET - 0.5, -0.05, 0);
+    const lineGeo = new THREE.BoxGeometry(0.05, 0.025, TILE_SIZE * 8);
+    const line = new THREE.Mesh(lineGeo, gridLineMat);
+    line.position.set(c - BOARD_OFFSET - 0.5, 0.012, 0);
     boardGroup.add(line);
   }
 
-  // FIX 2: Wood frame border - richer dark wood
-  const frameMat = new THREE.MeshStandardMaterial({ color: 0x5D3A1A, roughness: 0.6, metalness: 0.2 });
+  // Luxurious dark-red metallic frame — deep mahogany with a polished sheen
+  const frameMat = new THREE.MeshStandardMaterial({
+    color: 0x3A0A0A,
+    roughness: 0.28,
+    metalness: 0.75,
+    emissive: 0x1A0404,
+    emissiveIntensity: 0.15,
+  });
   const frameWidth = 0.4;
   const boardLen = BOARD_SIZE * TILE_SIZE;
   const totalLen = boardLen + frameWidth * 2;
@@ -1569,8 +1594,14 @@ function buildBoard() {
     boardGroup.add(mesh);
   }
 
-  // FIX 2: Gold inlay strip on frame
-  const goldMat = new THREE.MeshStandardMaterial({ color: 0xDAA520, metalness: 0.8, roughness: 0.3, emissive: 0x332200, emissiveIntensity: 0.2 });
+  // Polished gold inlay strip on frame — bright, metallic, with a warm glow
+  const goldMat = new THREE.MeshStandardMaterial({
+    color: 0xF0C24A,
+    metalness: 1.0,
+    roughness: 0.15,
+    emissive: 0x5A3A00,
+    emissiveIntensity: 0.35,
+  });
   for (const side of [-1, 1]) {
     const geoH = new THREE.BoxGeometry(boardLen + 0.2, 0.22, 0.05);
     const meshH = new THREE.Mesh(geoH, goldMat);
@@ -1585,8 +1616,14 @@ function buildBoard() {
 
   // Board edge glow ring removed — was too distracting
 
-  // FIX 5: More substantial pedestal with warm marble and beveled edges
-  const pedestalMat = new THREE.MeshStandardMaterial({ color: 0x4A3F35, roughness: 0.7, metalness: 0.15 });
+  // Dark metallic-red pedestals — polished lacquer / ruby lacquer over metal
+  const pedestalMat = new THREE.MeshStandardMaterial({
+    color: 0x4A0A0A,
+    roughness: 0.18,
+    metalness: 0.88,
+    emissive: 0x200404,
+    emissiveIntensity: 0.2,
+  });
 
   // Main pedestal layer (larger with slight bevel via chamfer)
   const pedestalGeo = new THREE.BoxGeometry(totalLen + 0.6, 0.3, totalLen + 0.6);
@@ -1604,8 +1641,14 @@ function buildBoard() {
   pedestal2.castShadow = true;
   boardGroup.add(pedestal2);
 
-  // FIX 5: Dark edge shadow ring around pedestal
-  const edgeRingMat = new THREE.MeshStandardMaterial({ color: 0x1A0E00, roughness: 0.9, metalness: 0.0 });
+  // Thin polished-gold edge ring around pedestal (replaces the old shadow ring)
+  const edgeRingMat = new THREE.MeshStandardMaterial({
+    color: 0xE8B93A,
+    metalness: 1.0,
+    roughness: 0.2,
+    emissive: 0x3A2000,
+    emissiveIntensity: 0.3,
+  });
   // Top pedestal edge
   for (const side of [-1, 1]) {
     const edgeH = new THREE.Mesh(
