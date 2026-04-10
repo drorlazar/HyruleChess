@@ -971,6 +971,88 @@ canvas { display: block; }
 #sceneEditorToggle.u2 { display: none; }
 #sceneEditorToggle.u2.show { display: block; }
 
+/* ===== Audio control widget (top-right, persistent) ===== */
+#audioWidget.u2 {
+  position: fixed; top: 14px; right: 14px;
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px 6px 8px;
+  background: linear-gradient(180deg, rgba(40,24,10,.92), rgba(14,8,4,.92));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1.5px solid rgba(220,180,90,.65);
+  border-radius: 999px;
+  box-shadow: 0 6px 22px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,215,0,.18), 0 0 14px rgba(255,215,0,.18);
+  z-index: 110;
+  font-family: 'MedievalSharp', serif;
+  transition: opacity .25s, box-shadow .25s;
+}
+#audioWidget.u2:hover { box-shadow: 0 6px 22px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,215,0,.18), 0 0 22px rgba(255,215,0,.45); }
+#audioWidget.u2 .u2-mute-btn {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--u2-glass-border);
+  background: rgba(0,0,0,.35);
+  color: var(--u2-gold);
+  font-size: 16px; line-height: 1;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  transition: all .12s;
+  flex-shrink: 0;
+}
+#audioWidget.u2 .u2-mute-btn:hover { border-color: var(--u2-gold); box-shadow: var(--u2-glow); }
+#audioWidget.u2 .u2-mute-btn .ico-off {
+  position: absolute; inset: 0;
+  display: none;
+  align-items: center; justify-content: center;
+  font-size: 20px;
+  color: #ff9090;
+}
+#audioWidget.u2.muted .u2-mute-btn { color: #ff9090; border-color: #c44040; }
+#audioWidget.u2.muted .u2-mute-btn .ico-on { opacity: .35; }
+#audioWidget.u2.muted .u2-mute-btn .ico-off { display: flex; }
+#audioWidget.u2 .u2-vol-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 96px; height: 4px;
+  background: linear-gradient(to right, var(--u2-bronze), rgba(220,180,90,.25));
+  border-radius: 2px;
+  outline: none;
+}
+#audioWidget.u2 .u2-vol-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--u2-gold);
+  border: 1px solid #2a1a05;
+  box-shadow: 0 0 6px rgba(255,215,0,.55);
+  cursor: pointer;
+}
+#audioWidget.u2 .u2-vol-slider::-moz-range-thumb {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--u2-gold);
+  border: 1px solid #2a1a05;
+  cursor: pointer;
+}
+
+@media (max-width: 900px) {
+  /* On mobile, slot widget into the top-right of the safe area but small */
+  #audioWidget.u2 {
+    top: calc(env(safe-area-inset-top, 0px) + 6px);
+    right: 8px;
+    padding: 4px 10px 4px 4px;
+    z-index: 99;
+    transform: scale(.85);
+    transform-origin: top right;
+  }
+  #audioWidget.u2 .u2-vol-slider { width: 72px; }
+  /* Auto-hide widget on mobile when game is active to give the board breathing room.
+     User can still tap to unhide via long-press anywhere. */
+  body.audio-collapsed #audioWidget.u2 .u2-vol-slider { display: none; }
+}
+
 /* ============================================================
    MOBILE @ <=900px — swap rails for top/bottom bars
    ============================================================ */
@@ -1349,6 +1431,15 @@ canvas { display: block; }
   <div id="statusMsg"></div>
 </div>
 
+<!-- Audio control widget (UI v2) -->
+<div id="audioWidget" class="u2">
+  <button id="audioMuteBtn" class="u2-mute-btn" title="Mute / Unmute (M)" aria-label="Mute toggle">
+    <span class="ico-on">♫</span>
+    <span class="ico-off">⃠</span>
+  </button>
+  <input id="audioMasterSlider" class="u2-vol-slider" type="range" min="0" max="100" value="70" aria-label="Master volume">
+</div>
+
 <!-- Scene Editor (toggle with E) -->
 <button id="sceneEditorToggle" class="u2" title="Toggle Scene Editor (E)">✦ Edit Scene</button>
 <div id="sceneEditor">
@@ -1609,92 +1700,193 @@ canvas { display: block; }
 // ============================================================
 // SOUND ENGINE (Web Audio API)
 // ============================================================
+// ============================================================
+// Sample-based SoundEngine (Web Audio for SFX, HTMLAudio for BGM)
+// SFX + BGM generated via ElevenLabs / Stable Audio 2.5
+// ============================================================
 const SoundEngine = (() => {
+  const SFX_FILES = {
+    select:    'assets/audio/select.mp3',
+    move:      'assets/audio/move.mp3',
+    capture:   'assets/audio/capture.mp3',
+    check:     'assets/audio/check.mp3',
+    checkmate: 'assets/audio/checkmate.mp3',
+    promotion: 'assets/audio/promotion.mp3',
+    castle:    'assets/audio/castle.mp3',
+    gameStart: 'assets/audio/game_start.mp3',
+    hover:     'assets/audio/hover.mp3',
+    click:     'assets/audio/click.mp3',
+    joined:    'assets/audio/joined.mp3',
+    notify:    'assets/audio/notify.mp3',
+  };
+  const BGM_FILES = {
+    title:   'assets/audio/bgm_title.mp3',
+    ambient: 'assets/audio/bgm_ambient.mp3',
+    victory: 'assets/audio/bgm_victory.mp3',
+  };
+  // Per-sound volume scaling so impactful sounds aren't drowning out subtle ones
+  const SFX_GAIN = {
+    select: 0.55, move: 0.6, capture: 0.75, check: 0.8, checkmate: 0.9,
+    promotion: 0.7, castle: 0.7, gameStart: 0.7,
+    hover: 0.25, click: 0.4, joined: 0.6, notify: 0.5,
+  };
+
   let ctx = null;
+  const buffers = {}; // sfx name -> AudioBuffer | 'loading' | 'error'
+  const bgmEls = {};  // bgm name -> HTMLAudioElement
+  let currentBgmName = null;
+  let currentBgmEl = null;
+  let fadeTimer = null;
+
+  // Settings (persisted)
+  const SETTINGS_KEY = 'hyruleChess.audio';
+  const settings = (() => {
+    try {
+      const raw = localStorage.getItem(SETTINGS_KEY);
+      if (raw) return Object.assign({ master: 0.7, music: 0.5, muted: false }, JSON.parse(raw));
+    } catch (e) {}
+    return { master: 0.7, music: 0.5, muted: false };
+  })();
+  function saveSettings() {
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {}
+  }
+
   function getCtx() {
     if (!ctx) {
-      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      try { ctx = new (window.AudioContext || window.webkitAudioContext)(); }
+      catch (e) { console.warn('AudioContext init failed', e); }
     }
     return ctx;
   }
 
-  function playTone(freq, duration, type, volume, startDelay) {
+  function loadSfx(name) {
     const c = getCtx();
-    const osc = c.createOscillator();
-    const gain = c.createGain();
-    osc.type = type || 'sine';
-    osc.frequency.setValueAtTime(freq, c.currentTime + (startDelay || 0));
-    gain.gain.setValueAtTime(volume || 0.15, c.currentTime + (startDelay || 0));
-    gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + (startDelay || 0) + duration);
-    osc.connect(gain);
-    gain.connect(c.destination);
-    osc.start(c.currentTime + (startDelay || 0));
-    osc.stop(c.currentTime + (startDelay || 0) + duration);
+    if (!c) return Promise.resolve(null);
+    if (buffers[name] && buffers[name] !== 'error') return Promise.resolve(buffers[name]);
+    buffers[name] = 'loading';
+    return fetch(SFX_FILES[name])
+      .then(r => r.arrayBuffer())
+      .then(ab => new Promise((resolve, reject) => c.decodeAudioData(ab, resolve, reject)))
+      .then(buf => { buffers[name] = buf; return buf; })
+      .catch(e => {
+        console.warn(`SFX load failed: ${name}`, e);
+        buffers[name] = 'error';
+        return null;
+      });
   }
 
-  function playNoise(duration, volume) {
-    const c = getCtx();
-    const bufSize = c.sampleRate * duration;
-    const buf = c.createBuffer(1, bufSize, c.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
-    const src = c.createBufferSource();
-    src.buffer = buf;
-    const gain = c.createGain();
-    gain.gain.setValueAtTime(volume || 0.1, c.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + duration);
-    src.connect(gain);
-    gain.connect(c.destination);
-    src.start(); src.stop(c.currentTime + duration);
+  let preloaded = false;
+  function preloadAll() {
+    if (preloaded) return;
+    preloaded = true;
+    Object.keys(SFX_FILES).forEach(k => loadSfx(k));
   }
 
-  function playSweep(startFreq, endFreq, duration, type, volume) {
+  function playSfx(name) {
+    if (settings.muted || settings.master <= 0) return;
     const c = getCtx();
-    const osc = c.createOscillator();
-    const gain = c.createGain();
-    osc.type = type || 'sine';
-    osc.frequency.setValueAtTime(startFreq, c.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(endFreq, c.currentTime + duration);
-    gain.gain.setValueAtTime(volume || 0.1, c.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + duration);
-    osc.connect(gain); gain.connect(c.destination);
-    osc.start(); osc.stop(c.currentTime + duration);
-  }
-
-  return {
-    select() {
-      // Bright two-note ascending chime
-      playTone(500, 0.08, 'sine', 0.12);
-      playTone(700, 0.08, 'sine', 0.10, 0.08);
-    },
-    move() {
-      // Swoosh with quick frequency drop
-      playSweep(800, 200, 0.15, 'sine', 0.1);
-    },
-    capture() {
-      // Impact thud + noise burst shatter
-      playTone(100, 0.2, 'sine', 0.15);
-      playNoise(0.2, 0.12);
-      playTone(80, 0.15, 'square', 0.06, 0.02);
-    },
-    check() {
-      // Dramatic warning: low pulse x3
-      playTone(150, 0.1, 'square', 0.12);
-      playTone(150, 0.1, 'square', 0.12, 0.15);
-      playTone(150, 0.1, 'square', 0.12, 0.30);
-    },
-    checkmate() {
-      // Triumphant fanfare: C-E-G chord building up
-      playTone(523, 0.5, 'sine', 0.10);
-      playTone(659, 0.5, 'sine', 0.10, 0.15);
-      playTone(784, 0.6, 'sine', 0.14, 0.30);
-      playTone(523 * 2, 0.7, 'sine', 0.12, 0.50);
-    },
-    gameStart() {
-      playTone(440, 0.2, 'sine', 0.1);
-      playTone(554, 0.2, 'sine', 0.1, 0.2);
-      playTone(659, 0.3, 'sine', 0.12, 0.4);
+    if (!c) return;
+    const buf = buffers[name];
+    if (!buf || buf === 'loading' || buf === 'error') {
+      if (!buf) loadSfx(name); // kick off load for next time
+      return;
     }
+    try {
+      const src = c.createBufferSource();
+      src.buffer = buf;
+      const g = c.createGain();
+      g.gain.value = (SFX_GAIN[name] || 0.6) * settings.master;
+      src.connect(g); g.connect(c.destination);
+      src.start();
+    } catch (e) { console.warn('playSfx error', e); }
+  }
+
+  function getBgm(name) {
+    if (bgmEls[name]) return bgmEls[name];
+    const a = new Audio(BGM_FILES[name]);
+    a.loop = (name !== 'victory');
+    a.preload = 'auto';
+    a.volume = 0;
+    bgmEls[name] = a;
+    return a;
+  }
+  function preloadBgm() {
+    Object.keys(BGM_FILES).forEach(k => { try { getBgm(k).load(); } catch (e) {} });
+  }
+
+  function targetMusicVol() {
+    return settings.muted ? 0 : settings.master * settings.music;
+  }
+
+  // Crossfade BGM. Pass null to stop. fadeMs default 900.
+  function playMusic(name, fadeMs) {
+    fadeMs = fadeMs == null ? 900 : fadeMs;
+    if (currentBgmName === name) return;
+    if (fadeTimer) { clearInterval(fadeTimer); fadeTimer = null; }
+
+    const oldEl = currentBgmEl;
+    const oldFromVol = oldEl ? oldEl.volume : 0;
+    let newEl = null;
+    if (name) {
+      newEl = getBgm(name);
+      try { newEl.currentTime = 0; } catch (e) {}
+      newEl.volume = 0;
+      const p = newEl.play();
+      if (p && p.catch) p.catch(() => { /* autoplay block — handled by user-gesture init */ });
+    }
+    currentBgmName = name;
+    currentBgmEl = newEl;
+
+    const finalVol = targetMusicVol();
+    const start = performance.now();
+    fadeTimer = setInterval(() => {
+      const t = Math.min(1, (performance.now() - start) / fadeMs);
+      if (oldEl) oldEl.volume = Math.max(0, (1 - t) * oldFromVol);
+      if (newEl) newEl.volume = t * finalVol;
+      if (t >= 1) {
+        clearInterval(fadeTimer); fadeTimer = null;
+        if (oldEl) { try { oldEl.pause(); oldEl.currentTime = 0; } catch (e) {} }
+      }
+    }, 16);
+  }
+  function stopMusic() { playMusic(null); }
+
+  function applyVolume() {
+    if (currentBgmEl) currentBgmEl.volume = targetMusicVol();
+  }
+  function setMaster(v) {
+    settings.master = Math.max(0, Math.min(1, v));
+    if (settings.master > 0) settings.muted = false;
+    applyVolume(); saveSettings();
+  }
+  function setMusicVol(v) {
+    settings.music = Math.max(0, Math.min(1, v));
+    applyVolume(); saveSettings();
+  }
+  function toggleMute() {
+    settings.muted = !settings.muted;
+    applyVolume(); saveSettings();
+    return settings.muted;
+  }
+  function getSettings() { return Object.assign({}, settings); }
+
+  // Public API (existing methods preserved + new hooks)
+  return {
+    select()    { playSfx('select'); },
+    move()      { playSfx('move'); },
+    capture()   { playSfx('capture'); },
+    check()     { playSfx('check'); },
+    checkmate() { playSfx('checkmate'); },
+    gameStart() { playSfx('gameStart'); },
+    promotion() { playSfx('promotion'); },
+    castle()    { playSfx('castle'); },
+    hover()     { playSfx('hover'); },
+    click()     { playSfx('click'); },
+    joined()    { playSfx('joined'); },
+    notify()    { playSfx('notify'); },
+    playMusic, stopMusic,
+    preloadAll, preloadBgm,
+    setMaster, setMusicVol, toggleMute, getSettings,
   };
 })();
 
@@ -5529,6 +5721,8 @@ function executeMove(move, callback) {
       const shakeAmount = shakeMap[capturedType] || 0.15;
       const shakeDur = capturedType === 'K' ? 400 : capturedType === 'Q' ? 300 : 200;
       triggerScreenShake(shakeAmount, shakeDur);
+    } else if (isCastle) {
+      SoundEngine.castle();
     } else if (!isCapture) {
       SoundEngine.move();
     }
@@ -5673,6 +5867,8 @@ function afterMove(result, callback) {
   } else if (result.status === 'checkmate') {
     SoundEngine.checkmate();
     const winner = Chess.getCurrentTurn() === 'w' ? 'b' : 'w';
+    // Victory fanfare music for the winner
+    SoundEngine.playMusic('victory');
     showGameOver(winner);
   } else if (result.status === 'stalemate') {
     showGameOver('draw');
@@ -5709,6 +5905,7 @@ function afterMove(result, callback) {
 function showPromotionDialog(color) {
   const dialog = document.getElementById('promotionDialog');
   dialog.classList.add('visible');
+  SoundEngine.promotion();
 
   const btns = dialog.querySelectorAll('.promo-btn');
   btns.forEach(btn => {
@@ -5963,6 +6160,7 @@ function showStatus(msg) {
   el.textContent = msg;
   el.classList.add('visible');
   setTimeout(() => el.classList.remove('visible'), 2000);
+  SoundEngine.notify();
 }
 
 // ============================================================
@@ -6053,6 +6251,7 @@ async function startGame(mode, optsOrDepth) {
     NetClient.onOpponentJoined((name) => {
       opponentName = name;
       updateUI();
+      SoundEngine.joined();
       showStatus(`${name} joined`);
     });
     NetClient.onOpponentLeft((reason) => {
@@ -6068,6 +6267,7 @@ async function startGame(mode, optsOrDepth) {
   }
 
   SoundEngine.gameStart();
+  SoundEngine.playMusic('ambient');
 }
 
 function returnToMenu() {
@@ -6109,6 +6309,7 @@ function returnToMenu() {
 
   document.getElementById('mainMenu').style.display = 'flex';
   document.getElementById('hud').style.display = 'none';
+  SoundEngine.playMusic('title');
 }
 
 // ============================================================
@@ -6163,7 +6364,7 @@ document.getElementById('btnMenu').addEventListener('click', () => {
 });
 
 // ============================================================
-// UI v2 — wiring for new buttons
+// UI v2 — wiring for new buttons + audio
 // ============================================================
 (function wireU2() {
   // Forward [data-mirror] clicks to the canonical element
@@ -6188,7 +6389,6 @@ document.getElementById('btnMenu').addEventListener('click', () => {
   const drawer = document.getElementById('chronicleDrawer');
   if (btnChron && drawer) {
     btnChron.addEventListener('click', () => drawer.classList.toggle('open'));
-    // Tap outside the drawer (on the bottom bar empty space) to close
     drawer.addEventListener('click', (e) => {
       if (e.target === drawer) drawer.classList.remove('open');
     });
@@ -6196,6 +6396,64 @@ document.getElementById('btnMenu').addEventListener('click', () => {
 
   // Mark body so the styled promo/gameover dialogs apply
   document.body.classList.add('u2-active');
+
+  // ----- Audio widget -----
+  const widget    = document.getElementById('audioWidget');
+  const muteBtn   = document.getElementById('audioMuteBtn');
+  const slider    = document.getElementById('audioMasterSlider');
+  function syncWidget() {
+    const s = SoundEngine.getSettings();
+    if (slider) slider.value = String(Math.round(s.master * 100));
+    if (widget) widget.classList.toggle('muted', s.muted);
+  }
+  syncWidget();
+  if (muteBtn) {
+    muteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      SoundEngine.toggleMute();
+      syncWidget();
+    });
+  }
+  if (slider) {
+    slider.addEventListener('input', (e) => {
+      SoundEngine.setMaster(parseInt(e.target.value, 10) / 100);
+      syncWidget();
+    });
+  }
+  // 'M' keyboard shortcut
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.key === 'm' || e.key === 'M') {
+      SoundEngine.toggleMute();
+      syncWidget();
+    }
+  });
+
+  // ----- UI sound hooks (button hover + click via event delegation) -----
+  // Selectors that should produce a hover tick + click sound
+  const HOVER_SEL = '.menu-btn, .diff-btn, .online-btn, .rail-btn, .mbtn, #btnChronicleOpen, #audioMuteBtn, .promo-btn, #gameOver button, #btnCopyCode';
+  document.addEventListener('pointerenter', (e) => {
+    const t = e.target;
+    if (t && t.matches && t.matches(HOVER_SEL)) SoundEngine.hover();
+  }, true);
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest && e.target.closest(HOVER_SEL);
+    if (t) SoundEngine.click();
+  }, true);
+
+  // ----- Audio bootstrap on first user gesture (autoplay policy) -----
+  let bootstrapped = false;
+  function bootstrapAudio() {
+    if (bootstrapped) return;
+    bootstrapped = true;
+    SoundEngine.preloadAll();
+    SoundEngine.preloadBgm();
+    // If we're on the lobby (no game running), play title theme
+    if (!window.gameActive) SoundEngine.playMusic('title');
+  }
+  ['pointerdown', 'keydown', 'touchstart'].forEach(evt => {
+    document.addEventListener(evt, bootstrapAudio, { once: true, capture: true });
+  });
 })();
 
 document.getElementById('btnPlayAgain').addEventListener('click', () => {
