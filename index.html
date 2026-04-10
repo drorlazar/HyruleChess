@@ -8,6 +8,10 @@
 <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
 <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<!-- Firebase (for online PvP — see net.js for config) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="net.js"></script>
 <!-- Post-processing chain for the Scene Editor -->
 <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
 <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
@@ -87,6 +91,103 @@ canvas { display: block; }
 }
 .diff-btn:hover { border-color: #90EE90; box-shadow: 0 0 10px rgba(144,238,144,0.3); }
 .diff-btn.selected { background: #2D5016; border-color: #FFD700; color: #FFD700; }
+
+/* Online PvP panel */
+#onlinePanel {
+  display: none; margin-top: 16px; text-align: center;
+  width: 320px; max-width: 92vw;
+}
+#onlinePanel.visible { display: block; }
+#onlinePanel .field {
+  display: flex; flex-direction: column; align-items: stretch;
+  margin-bottom: 10px;
+}
+#onlinePanel label {
+  color: #B8860B; font-size: 14px; text-align: left;
+  margin-bottom: 4px;
+}
+#onlinePanel input[type="text"] {
+  padding: 10px 12px;
+  font-family: 'MedievalSharp', cursive; font-size: 18px;
+  background: rgba(10,6,2,0.8);
+  color: #FFD700; border: 1px solid #5a3a10;
+  border-radius: 6px; outline: none;
+  text-align: center;
+}
+#onlinePanel input[type="text"]:focus {
+  border-color: #FFD700;
+  box-shadow: 0 0 8px rgba(255,215,0,0.35);
+}
+#onlinePanel .online-btn {
+  display: inline-block; width: 140px; padding: 12px 8px; margin: 6px 4px;
+  font-family: 'MedievalSharp', cursive; font-size: 18px;
+  background: linear-gradient(180deg, #3E2723 0%, #2a1a0f 100%);
+  color: #FFD700; border: 1px solid #8B6914;
+  border-radius: 6px; cursor: pointer; transition: all 0.15s;
+}
+#onlinePanel .online-btn:hover {
+  border-color: #FFD700;
+  box-shadow: 0 0 10px rgba(255,215,0,0.35);
+}
+#onlinePanel .online-btn:disabled {
+  opacity: 0.4; cursor: not-allowed;
+}
+#roomCodeDisplay {
+  display: none;
+  margin-top: 12px; padding: 16px;
+  background: rgba(30,15,0,0.85);
+  border: 1px solid #8B6914; border-radius: 8px;
+}
+#roomCodeDisplay.visible { display: block; }
+#roomCodeDisplay .label {
+  font-size: 13px; color: #B8860B; margin-bottom: 4px;
+}
+#roomCodeDisplay .code {
+  font-family: 'MedievalSharp', cursive; font-size: 44px;
+  color: #FFD700; letter-spacing: 8px;
+  text-shadow: 0 0 14px rgba(255,215,0,0.55);
+  margin: 6px 0 10px 0;
+  user-select: all;
+}
+#roomCodeDisplay .code-copy-btn {
+  padding: 6px 14px; font-size: 13px;
+  background: rgba(10,6,2,0.8); color: #FFD700;
+  border: 1px solid #5a3a10; border-radius: 4px;
+  cursor: pointer; font-family: inherit;
+}
+#roomCodeDisplay .code-copy-btn:hover { border-color: #FFD700; }
+#roomCodeDisplay .waiting {
+  margin-top: 10px; font-size: 14px; color: #B8860B;
+  animation: pulseDim 1.8s infinite;
+}
+@keyframes pulseDim {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+#onlineError {
+  color: #FF6B6B; font-size: 13px; margin-top: 8px; min-height: 18px;
+}
+/* specificity must beat #onlinePanel .online-btn */
+#onlinePanel #btnResumeRoom {
+  display: none;
+}
+#onlinePanel #btnResumeRoom.visible { display: inline-block; }
+
+/* HUD: networked header (above turn indicator) */
+#netHeader {
+  position: absolute; top: 0; left: 0; right: 0;
+  display: none;
+  text-align: center;
+  padding-top: 6px;
+  font-size: 14px; color: #C8B888;
+  text-shadow: 0 0 6px rgba(255,215,0,0.2);
+  pointer-events: none;
+  z-index: 51;
+}
+#netHeader.visible { display: block; }
+#netHeader b { color: #FFD700; }
+#btnResign { display: none; }
+#btnResign.visible { display: inline-block; }
 
 /* HUD */
 #hud {
@@ -427,16 +528,41 @@ canvas { display: block; }
   <div class="subtitle">The Battle for the Triforce</div>
   <button class="menu-btn" id="btnPvP">Player vs Player</button>
   <button class="menu-btn" id="btnCPU">Player vs CPU</button>
+  <button class="menu-btn" id="btnOnline">Play Online</button>
   <div class="difficulty-selector" id="diffSelector">
     <label>Choose Your Trial:</label>
     <button class="diff-btn selected" data-depth="2">Courage</button>
     <button class="diff-btn" data-depth="3">Wisdom</button>
     <button class="diff-btn" data-depth="4">Power</button>
   </div>
+  <div id="onlinePanel">
+    <div class="field">
+      <label for="onlineNameInput">Your name</label>
+      <input type="text" id="onlineNameInput" maxlength="16" placeholder="Link" autocomplete="off">
+    </div>
+    <div>
+      <button class="online-btn" id="btnCreateRoom">Create Room</button>
+      <button class="online-btn" id="btnShowJoin">Join Room</button>
+    </div>
+    <div class="field" id="joinCodeField" style="display:none; margin-top:6px">
+      <label for="onlineCodeInput">Room code</label>
+      <input type="text" id="onlineCodeInput" maxlength="8" placeholder="ABCDE" autocomplete="off" style="letter-spacing: 6px; text-transform: uppercase;">
+      <button class="online-btn" id="btnJoinRoomGo" style="margin-top:6px">Join</button>
+    </div>
+    <button class="online-btn" id="btnResumeRoom" style="margin-top:8px; width:auto; padding: 10px 18px">Resume room</button>
+    <div id="roomCodeDisplay">
+      <div class="label">Share this code with your friend</div>
+      <div class="code" id="roomCodeValue">—————</div>
+      <button class="code-copy-btn" id="btnCopyCode">Copy code</button>
+      <div class="waiting">Waiting for opponent…</div>
+    </div>
+    <div id="onlineError"></div>
+  </div>
 </div>
 
 <!-- HUD -->
 <div id="hud">
+  <div id="netHeader"></div>
   <div id="topBar">
     <div id="turnIndicator">Hyrule's Turn</div>
   </div>
@@ -452,6 +578,7 @@ canvas { display: block; }
   </div>
   <div id="bottomButtons">
     <button class="hud-btn" id="btnNewGame">New Game</button>
+    <button class="hud-btn" id="btnResign">Resign</button>
     <button class="hud-btn" id="btnMenu">Menu</button>
   </div>
   <div id="statusMsg"></div>
@@ -1530,10 +1657,23 @@ const animations = [];
 let pendingPromotion = null;
 let selectedPiece = null;
 let selectedMoves = [];
-let gameMode = null; // 'pvp' or 'cpu'
+let gameMode = null; // 'pvp' | 'cpu' | 'online'
 let cpuDepth = 2;
 let cpuThinking = false;
 let gameActive = false;
+
+// Online PvP state (only relevant when gameMode === 'online')
+let myColor = null;           // 'w' | 'b' | null
+let myName = '';
+let opponentName = '';
+let lastSentSeq = -1;         // for local echo dedup
+
+// Minimal HTML escaper for user-supplied strings (names)
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
 
 // Hover state
 let hoveredPieceMesh = null;
@@ -4362,6 +4502,7 @@ const mouse = new THREE.Vector2();
 // Hover handling (throttled)
 function handleHover(clientX, clientY) {
   if (!gameActive || cpuThinking || pendingPromotion) return;
+  if (gameMode === 'online' && Chess.getCurrentTurn() !== myColor) return;
 
   mouse.x = (clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(clientY / window.innerHeight) * 2 + 1;
@@ -4404,6 +4545,7 @@ function handleHover(clientX, clientY) {
 
 function handleClick(clientX, clientY) {
   if (!gameActive || cpuThinking || pendingPromotion) return;
+  if (gameMode === 'online' && Chess.getCurrentTurn() !== myColor) return;
   if (animations.length > 0) return;
 
   mouse.x = (clientX / window.innerWidth) * 2 - 1;
@@ -4456,6 +4598,7 @@ function handleClick(clientX, clientY) {
     // If clicking on own piece, select it
     if (clickedColor === Chess.getCurrentTurn()) {
       if (gameMode === 'cpu' && clickedColor !== 'w') return;
+      if (gameMode === 'online' && clickedColor !== myColor) return;
 
       if (selectedPiece && selectedPiece.row === clickedRow && selectedPiece.col === clickedCol) {
         deselectPiece();
@@ -4569,6 +4712,21 @@ function executePlayerMove(toRow, toCol) {
 
   const move = matchingMoves[0];
   deselectPiece();
+
+  // Online: send the move over the wire before applying locally (optimistic)
+  if (gameMode === 'online' && window.NetClient) {
+    NetClient.sendMove({
+      fromRow: move.fromRow,
+      fromCol: move.fromCol,
+      toRow: move.toRow,
+      toCol: move.toCol,
+      promoteTo: move.promoteTo || null,
+    }).catch(err => {
+      console.warn('sendMove failed:', err);
+      showStatus('Network error: move not sent');
+    });
+  }
+
   executeMove(move);
 }
 
@@ -4701,6 +4859,37 @@ function executeMove(move, callback) {
   }
 }
 
+// Apply a move received from the network by finding the matching legal
+// move object on the current board (so engine flags like castling / enPassant
+// / promotion get populated correctly from our own move generator).
+function applyRemoteMove(netMove) {
+  if (!gameActive) return;
+  const legal = Chess.legalMoves(netMove.fromRow, netMove.fromCol);
+  const match = legal.find(m =>
+    m.toRow === netMove.toRow &&
+    m.toCol === netMove.toCol &&
+    (m.promoteTo || null) === (netMove.promoteTo || null)
+  );
+  if (!match) {
+    console.warn('Received illegal/unknown remote move', netMove);
+    return;
+  }
+  executeMove(match);
+}
+
+// Silently replay a list of moves into the engine (no animation, no sound).
+// Used by the reconnect / resume flow to bring the local engine up to date.
+function replayMovesSilent(moves) {
+  for (const m of moves) {
+    const legal = Chess.legalMoves(m.fromRow, m.fromCol);
+    const match = legal.find(x =>
+      x.toRow === m.toRow && x.toCol === m.toCol &&
+      (x.promoteTo || null) === (m.promoteTo || null)
+    );
+    if (match) Chess.makeMove(match);
+  }
+}
+
 function afterMove(result, callback) {
   updateUI();
   removeCheckHighlight();
@@ -4771,6 +4960,21 @@ document.querySelectorAll('.promo-btn').forEach(btn => {
     hidePromotionDialog();
     const promo = pendingPromotion;
     pendingPromotion = null;
+
+    // Online: ship the full promotion move (with promoteTo) to the opponent
+    if (gameMode === 'online' && window.NetClient) {
+      NetClient.sendMove({
+        fromRow: move.fromRow,
+        fromCol: move.fromCol,
+        toRow: move.toRow,
+        toCol: move.toCol,
+        promoteTo: move.promoteTo || null,
+      }).catch(err => {
+        console.warn('sendMove (promotion) failed:', err);
+        showStatus('Network error: promotion not sent');
+      });
+    }
+
     executeMove(move);
   });
 });
@@ -4857,11 +5061,26 @@ function updateUI() {
 
   if (gameMode === 'pvp') {
     turnEl.textContent = turn === 'w' ? "Hyrule's Turn" : "Ganon's Turn";
-  } else {
+    turnEl.style.color = turn === 'w' ? '#FFD700' : '#FF4444';
+  } else if (gameMode === 'cpu') {
     turnEl.textContent = turn === 'w' ? "Your Turn" : "Ganon's Turn";
+    turnEl.style.color = turn === 'w' ? '#FFD700' : '#FF4444';
+  } else if (gameMode === 'online') {
+    if (!opponentName) {
+      turnEl.textContent = 'Waiting for opponent…';
+      turnEl.style.color = '#B8860B';
+    } else if (turn === myColor) {
+      turnEl.textContent = 'Your Turn';
+      turnEl.style.color = '#FFD700';
+    } else {
+      turnEl.textContent = `${opponentName}'s Turn`;
+      turnEl.style.color = '#FF4444';
+    }
+    const header = document.getElementById('netHeader');
+    if (header) {
+      header.innerHTML = `<b>${escapeHtml(myName || 'You')}</b> vs <b>${escapeHtml(opponentName || '…')}</b>`;
+    }
   }
-
-  turnEl.style.color = turn === 'w' ? '#FFD700' : '#FF4444';
 
   // Captured pieces
   const captured = Chess.getCaptured();
@@ -4899,7 +5118,7 @@ function showStatus(msg) {
 // GAME FLOW
 // ============================================================
 
-async function startGame(mode, depth) {
+async function startGame(mode, optsOrDepth) {
   // Show loading overlay
   if (!ModelLoader.loaded) {
     const loadingEl = document.createElement('div');
@@ -4913,22 +5132,83 @@ async function startGame(mode, depth) {
     loadingEl.remove();
   }
 
+  // Backwards-compat: CPU mode passed a numeric depth, online mode passes an object
+  const opts = (typeof optsOrDepth === 'object' && optsOrDepth !== null) ? optsOrDepth : {};
+  const depth = (typeof optsOrDepth === 'number') ? optsOrDepth : undefined;
+
   gameMode = mode;
   cpuDepth = depth || 2;
   cpuThinking = false;
   gameActive = true;
 
+  if (mode === 'online') {
+    myColor = opts.myColor || 'w';
+    myName = opts.myName || NetClient.getSavedName() || 'Player';
+    opponentName = opts.opponentName || '';
+  } else {
+    myColor = null;
+    myName = '';
+    opponentName = '';
+  }
+
   Chess.initBoard();
-  placePieces(true);
+
+  // Reconnect: silently replay history before rendering pieces
+  if (mode === 'online' && opts.resumeMoves && opts.resumeMoves.length > 0) {
+    replayMovesSilent(opts.resumeMoves);
+  }
+
+  placePieces(mode !== 'online' || !opts.resumeMoves || opts.resumeMoves.length === 0);
   deselectPiece();
   removeCheckHighlight();
   clearValidMoveMarkers();
   removeSelectionRing();
   hideGameOver();
+
+  // Camera: flip to the black player's side if that's who we are
+  if (mode === 'online' && myColor === 'b') {
+    camera.position.set(0, 12, -9);
+  } else {
+    camera.position.set(0, 12, 9);
+  }
+  camera.lookAt(0, 0, 0);
+  if (typeof controls !== 'undefined' && controls && controls.update) controls.update();
+
   updateUI();
 
   document.getElementById('mainMenu').style.display = 'none';
   document.getElementById('hud').style.display = 'block';
+
+  // Show/hide online-only HUD elements
+  const netHeader = document.getElementById('netHeader');
+  const btnResign = document.getElementById('btnResign');
+  if (mode === 'online') {
+    netHeader.classList.add('visible');
+    btnResign.classList.add('visible');
+  } else {
+    netHeader.classList.remove('visible');
+    btnResign.classList.remove('visible');
+  }
+
+  // Wire network callbacks (only in online mode)
+  if (mode === 'online' && window.NetClient) {
+    NetClient.onMoveReceived((mv) => applyRemoteMove(mv));
+    NetClient.onOpponentJoined((name) => {
+      opponentName = name;
+      updateUI();
+      showStatus(`${name} joined`);
+    });
+    NetClient.onOpponentLeft((reason) => {
+      showStatus('Opponent left');
+    });
+    NetClient.onResign((winner) => {
+      if (gameActive) showGameOver(winner);
+    });
+    NetClient.onRematchAccepted(() => {
+      // Restart the game locally — same mode, same colors, same names
+      startGame('online', { myColor, myName, opponentName });
+    });
+  }
 
   SoundEngine.gameStart();
 }
@@ -4941,6 +5221,31 @@ function returnToMenu() {
   clearValidMoveMarkers();
   removeSelectionRing();
   hideGameOver();
+
+  // Leave any online room cleanly
+  if (gameMode === 'online' && window.NetClient) {
+    try { NetClient.leaveRoom(); } catch (e) {}
+  }
+  gameMode = null;
+  myColor = null;
+  myName = '';
+  opponentName = '';
+
+  // Reset camera to the default Hyrule-side view
+  camera.position.set(0, 12, 9);
+  camera.lookAt(0, 0, 0);
+  if (typeof controls !== 'undefined' && controls && controls.update) controls.update();
+
+  // Hide online-only HUD chrome
+  document.getElementById('netHeader').classList.remove('visible');
+  document.getElementById('btnResign').classList.remove('visible');
+  // Reset the online panel view
+  const onlinePanel = document.getElementById('onlinePanel');
+  const roomDisp = document.getElementById('roomCodeDisplay');
+  const joinField = document.getElementById('joinCodeField');
+  if (onlinePanel) onlinePanel.classList.remove('visible');
+  if (roomDisp) roomDisp.classList.remove('visible');
+  if (joinField) joinField.style.display = 'none';
 
   document.getElementById('mainMenu').style.display = 'flex';
   document.getElementById('hud').style.display = 'none';
@@ -4977,7 +5282,20 @@ document.querySelectorAll('.diff-btn').forEach(btn => {
 });
 
 document.getElementById('btnNewGame').addEventListener('click', () => {
+  if (gameMode === 'online') {
+    // Online new-game = rematch request
+    NetClient.sendRematchRequest().catch(e => console.warn('rematch failed', e));
+    showStatus('Rematch requested…');
+    return;
+  }
   startGame(gameMode, cpuDepth);
+});
+
+document.getElementById('btnResign').addEventListener('click', () => {
+  if (gameMode !== 'online' || !gameActive) return;
+  if (!confirm('Resign the match?')) return;
+  NetClient.sendResign().catch(e => console.warn('resign failed', e));
+  // Local game-over will fire from onResign handler
 });
 
 document.getElementById('btnMenu').addEventListener('click', () => {
@@ -4986,6 +5304,11 @@ document.getElementById('btnMenu').addEventListener('click', () => {
 
 document.getElementById('btnPlayAgain').addEventListener('click', () => {
   hideGameOver();
+  if (gameMode === 'online') {
+    NetClient.sendRematchRequest().catch(e => console.warn('rematch failed', e));
+    showStatus('Rematch requested…');
+    return;
+  }
   startGame(gameMode, cpuDepth);
 });
 
@@ -4993,6 +5316,169 @@ document.getElementById('btnBackMenu').addEventListener('click', () => {
   hideGameOver();
   returnToMenu();
 });
+
+// ============================================================
+// ONLINE PVP MENU HANDLERS
+// ============================================================
+(function setupOnlineMenu() {
+  const btnOnline = document.getElementById('btnOnline');
+  const panel = document.getElementById('onlinePanel');
+  const nameInput = document.getElementById('onlineNameInput');
+  const btnCreate = document.getElementById('btnCreateRoom');
+  const btnShowJoin = document.getElementById('btnShowJoin');
+  const joinField = document.getElementById('joinCodeField');
+  const codeInput = document.getElementById('onlineCodeInput');
+  const btnJoinGo = document.getElementById('btnJoinRoomGo');
+  const btnResume = document.getElementById('btnResumeRoom');
+  const codeDisp = document.getElementById('roomCodeDisplay');
+  const codeVal = document.getElementById('roomCodeValue');
+  const btnCopyCode = document.getElementById('btnCopyCode');
+  const errorEl = document.getElementById('onlineError');
+
+  function showError(msg) {
+    errorEl.textContent = msg || '';
+  }
+
+  function resetPanel() {
+    codeDisp.classList.remove('visible');
+    joinField.style.display = 'none';
+    showError('');
+  }
+
+  btnOnline.addEventListener('click', () => {
+    // Hide the CPU difficulty selector if open
+    document.getElementById('diffSelector').classList.remove('visible');
+
+    // Toggle the online panel
+    if (panel.classList.contains('visible')) {
+      panel.classList.remove('visible');
+      return;
+    }
+    panel.classList.add('visible');
+    resetPanel();
+
+    // Check Firebase configuration
+    if (!NetClient.isConfigured()) {
+      showError('Online play not configured. Edit FIREBASE_CONFIG in net.js — see README.');
+      btnCreate.disabled = true;
+      btnShowJoin.disabled = true;
+      return;
+    }
+    btnCreate.disabled = false;
+    btnShowJoin.disabled = false;
+
+    // Prefill name from localStorage
+    nameInput.value = NetClient.getSavedName() || '';
+    nameInput.focus();
+
+    // Show "Resume" button if there's a stashed session
+    const resume = NetClient.getSavedResume();
+    if (resume && resume.code) {
+      btnResume.textContent = `Resume room ${resume.code}`;
+      btnResume.classList.add('visible');
+    } else {
+      btnResume.classList.remove('visible');
+    }
+  });
+
+  // Save name to localStorage on every change
+  nameInput.addEventListener('input', () => {
+    NetClient.setSavedName(nameInput.value);
+  });
+
+  // Uppercase the room-code input as the user types
+  codeInput.addEventListener('input', () => {
+    codeInput.value = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  });
+
+  btnCreate.addEventListener('click', async () => {
+    showError('');
+    const name = (nameInput.value || '').trim();
+    if (!name) { showError('Enter your name first'); return; }
+    try {
+      btnCreate.disabled = true;
+      btnShowJoin.disabled = true;
+      const { code, myColor: color } = await NetClient.createRoom(name);
+      codeVal.textContent = code;
+      codeDisp.classList.add('visible');
+
+      // Wait for opponent to join, then start the game
+      NetClient.onOpponentJoined((oppName) => {
+        startGame('online', { myColor: color, myName: name, opponentName: oppName });
+      });
+    } catch (e) {
+      showError(e.message || String(e));
+      btnCreate.disabled = false;
+      btnShowJoin.disabled = false;
+    }
+  });
+
+  btnShowJoin.addEventListener('click', () => {
+    joinField.style.display = joinField.style.display === 'none' ? 'flex' : 'none';
+    if (joinField.style.display !== 'none') codeInput.focus();
+  });
+
+  btnJoinGo.addEventListener('click', async () => {
+    showError('');
+    const name = (nameInput.value || '').trim();
+    const code = (codeInput.value || '').trim().toUpperCase();
+    if (!name) { showError('Enter your name first'); return; }
+    if (code.length < 4) { showError('Enter a room code'); return; }
+    try {
+      btnJoinGo.disabled = true;
+      const result = await NetClient.joinRoom(code, name);
+      startGame('online', {
+        myColor: result.myColor,
+        myName: name,
+        opponentName: result.opponentName,
+        resumeMoves: result.existingMoves || [],
+      });
+    } catch (e) {
+      showError(e.message || String(e));
+    } finally {
+      btnJoinGo.disabled = false;
+    }
+  });
+
+  btnResume.addEventListener('click', async () => {
+    showError('');
+    const resume = NetClient.getSavedResume();
+    if (!resume) return;
+    try {
+      btnResume.disabled = true;
+      const result = await NetClient.resumeRoom(resume.code);
+      startGame('online', {
+        myColor: result.myColor,
+        myName: result.myName || resume.name || 'Player',
+        opponentName: result.opponentName || '',
+        resumeMoves: result.existingMoves || [],
+      });
+    } catch (e) {
+      showError(e.message || String(e));
+      btnResume.classList.remove('visible');
+      NetClient.clearResume();
+    } finally {
+      btnResume.disabled = false;
+    }
+  });
+
+  btnCopyCode.addEventListener('click', async () => {
+    const code = codeVal.textContent;
+    try {
+      await navigator.clipboard.writeText(code);
+      const orig = btnCopyCode.textContent;
+      btnCopyCode.textContent = 'Copied!';
+      setTimeout(() => { btnCopyCode.textContent = orig; }, 1200);
+    } catch (e) {
+      // Fallback: select the code div so the user can long-press/copy
+      const range = document.createRange();
+      range.selectNodeContents(codeVal);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+  });
+})();
 
 // ============================================================
 // INIT
