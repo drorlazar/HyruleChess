@@ -15,12 +15,17 @@
 // security lives in the Database Rules. Committing this file is safe.
 // See: https://firebase.google.com/docs/projects/api-keys
 
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const FIREBASE_CONFIG = {
-  apiKey: "PASTE_HERE",
-  authDomain: "your-project.firebaseapp.com",
-  databaseURL: "https://your-project-default-rtdb.firebaseio.com",
-  projectId: "your-project",
-  appId: "1:000000000000:web:0000000000000000000000",
+  apiKey: "AIzaSyCGA7U51laieQRRlTMKbtdfwE6EdGCK-Aw",
+  authDomain: "hyrulechess.firebaseapp.com",
+  databaseURL: "https://hyrulechess-default-rtdb.firebaseio.com",
+  projectId: "hyrulechess",
+  storageBucket: "hyrulechess.firebasestorage.app",
+  messagingSenderId: "348684027699",
+  appId: "1:348684027699:web:341a712f40b791b7ba6046",
+  measurementId: "G-XD9D0474GW"
 };
 
 // ============================================================
@@ -60,8 +65,8 @@ const FIREBASE_CONFIG = {
   // ---------- Helpers ----------
   function isConfigured() {
     return FIREBASE_CONFIG.apiKey &&
-           FIREBASE_CONFIG.apiKey !== 'PASTE_HERE' &&
-           FIREBASE_CONFIG.databaseURL;
+      FIREBASE_CONFIG.apiKey !== 'PASTE_HERE' &&
+      FIREBASE_CONFIG.databaseURL;
   }
 
   function trimName(name) {
@@ -86,7 +91,7 @@ const FIREBASE_CONFIG = {
     try { return localStorage.getItem(NAME_KEY) || ''; } catch (e) { return ''; }
   }
   function setSavedName(name) {
-    try { localStorage.setItem(NAME_KEY, trimName(name)); } catch (e) {}
+    try { localStorage.setItem(NAME_KEY, trimName(name)); } catch (e) { }
   }
 
   function getSavedResume() {
@@ -96,10 +101,10 @@ const FIREBASE_CONFIG = {
     } catch (e) { return null; }
   }
   function saveResume(obj) {
-    try { sessionStorage.setItem(RESUME_KEY, JSON.stringify(obj)); } catch (e) {}
+    try { sessionStorage.setItem(RESUME_KEY, JSON.stringify(obj)); } catch (e) { }
   }
   function clearResume() {
-    try { sessionStorage.removeItem(RESUME_KEY); } catch (e) {}
+    try { sessionStorage.removeItem(RESUME_KEY); } catch (e) { }
   }
 
   // ---------- Firebase init ----------
@@ -287,7 +292,7 @@ const FIREBASE_CONFIG = {
     _detachListeners();
     if (_roomRef && _myColor) {
       const slot = _myColor === 'w' ? 'host' : 'guest';
-      try { _roomRef.child(slot + '/online').set(false); } catch (e) {}
+      try { _roomRef.child(slot + '/online').set(false); } catch (e) { }
     }
     clearResume();
     _roomRef = null;
@@ -418,7 +423,7 @@ const FIREBASE_CONFIG = {
       _roomRef.child(_myColor === 'w' ? 'guest' : 'host').off('value');
       _roomRef.child('resign').off('value');
       _roomRef.child('rematch').off('value');
-    } catch (e) {}
+    } catch (e) { }
     _handles = [];
   }
 
