@@ -108,32 +108,49 @@ const FIREBASE_CONFIG = {
   }
 
   // ---------- Firebase init ----------
+  // init() returns a Promise<boolean>. The first call signs in anonymously
+  // (Firebase Database rules require auth != null). Subsequent calls resolve
+  // immediately. Anonymous auth means no PII is collected — Firebase issues
+  // a random UID per browser session.
+  let _initPromise = null;
   function init() {
-    if (_initialized) return true;
+    if (_initialized) return Promise.resolve(true);
+    if (_initPromise) return _initPromise;
     if (!isConfigured()) {
       console.warn('[NetClient] Firebase not configured — edit net.js FIREBASE_CONFIG to enable online play.');
-      return false;
+      return Promise.resolve(false);
     }
     if (typeof firebase === 'undefined') {
       console.error('[NetClient] Firebase SDK not loaded. Check <script> tags in index.html.');
-      return false;
+      return Promise.resolve(false);
     }
-    try {
-      if (firebase.apps && firebase.apps.length === 0) {
-        firebase.initializeApp(FIREBASE_CONFIG);
+    _initPromise = (async () => {
+      try {
+        if (firebase.apps && firebase.apps.length === 0) {
+          firebase.initializeApp(FIREBASE_CONFIG);
+        }
+        // Anonymous sign-in (required by tightened database rules).
+        // If the Anonymous provider isn't enabled in the Firebase console,
+        // this throws "auth/operation-not-allowed" — surface a clear hint.
+        await firebase.auth().signInAnonymously();
+        _db = firebase.database();
+        _initialized = true;
+        return true;
+      } catch (e) {
+        console.error('[NetClient] init failed:', e);
+        if (e && e.code === 'auth/operation-not-allowed') {
+          console.error('[NetClient] Enable Anonymous Auth in Firebase console: https://console.firebase.google.com/project/' + FIREBASE_CONFIG.projectId + '/authentication/providers');
+        }
+        _initPromise = null; // allow retry on next call
+        return false;
       }
-      _db = firebase.database();
-      _initialized = true;
-      return true;
-    } catch (e) {
-      console.error('[NetClient] init failed:', e);
-      return false;
-    }
+    })();
+    return _initPromise;
   }
 
   // ---------- Room lifecycle ----------
   async function createRoom(name) {
-    if (!init()) throw new Error('Firebase not configured');
+    if (!(await init())) throw new Error('Firebase init failed — check console for details');
     const myName = trimName(name);
     setSavedName(myName);
 
@@ -176,7 +193,7 @@ const FIREBASE_CONFIG = {
   }
 
   async function joinRoom(code, name) {
-    if (!init()) throw new Error('Firebase not configured');
+    if (!(await init())) throw new Error('Firebase init failed — check console for details');
     if (!code || typeof code !== 'string') throw new Error('Invalid room code');
     code = code.trim().toUpperCase();
 
@@ -235,7 +252,7 @@ const FIREBASE_CONFIG = {
   }
 
   async function resumeRoom(code) {
-    if (!init()) throw new Error('Firebase not configured');
+    if (!(await init())) throw new Error('Firebase init failed — check console for details');
     const saved = getSavedResume();
     if (!saved || saved.code !== code) throw new Error('No resume data for ' + code);
 
