@@ -500,15 +500,15 @@ canvas { display: block; }
     <summary>Background</summary>
     <label class="row">
       <span class="lbl">Inner</span>
-      <input type="color" data-se="bg.inner" value="#231013">
+      <input type="color" data-se="bg.inner" value="#100a0b">
     </label>
     <label class="row">
       <span class="lbl">Mid</span>
-      <input type="color" data-se="bg.mid" value="#4d0026">
+      <input type="color" data-se="bg.mid" value="#0a0005">
     </label>
     <label class="row">
       <span class="lbl">Outer</span>
-      <input type="color" data-se="bg.outer" value="#470606">
+      <input type="color" data-se="bg.outer" value="#0f0000">
     </label>
   </details>
 
@@ -1679,14 +1679,14 @@ const ModelLoader = {
 function initThree() {
   scene = new THREE.Scene();
 
-  // Deep wine-crimson arena background — subdued, like spilled wine on velvet
+  // Near-black arena background — pure void with a whisper of warm red
   const bgCanvas = document.createElement('canvas');
   bgCanvas.width = 1024; bgCanvas.height = 1024;
   const bgCtx = bgCanvas.getContext('2d');
   const bgGrad = bgCtx.createRadialGradient(512, 512, 0, 512, 512, 720);
-  bgGrad.addColorStop(0, '#231013');    // near-black maroon core
-  bgGrad.addColorStop(0.35, '#4d0026'); // dark wine mid
-  bgGrad.addColorStop(1, '#470606');    // deep ox-blood falloff
+  bgGrad.addColorStop(0, '#100a0b');    // faint warm-grey core
+  bgGrad.addColorStop(0.35, '#0a0005'); // near-black mid
+  bgGrad.addColorStop(1, '#0f0000');    // deep black-red falloff
   bgCtx.fillStyle = bgGrad;
   bgCtx.fillRect(0, 0, 1024, 1024);
   const bgTexture = new THREE.CanvasTexture(bgCanvas);
@@ -4080,9 +4080,9 @@ const SCENE_DEFAULTS = {
   'tm.exposure': 1.30,
   'fog.density': 0.065,
   'fog.color': '#0a000a',
-  'bg.inner': '#231013',
-  'bg.mid': '#4d0026',
-  'bg.outer': '#470606',
+  'bg.inner': '#100a0b',
+  'bg.mid': '#0a0005',
+  'bg.outer': '#0f0000',
   'ambient.intensity': 0.09,
   'ambient.color': '#ff9214',
   'keySpot.intensity': 2.85,
