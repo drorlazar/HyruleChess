@@ -487,8 +487,8 @@ canvas { display: block; }
     <summary>Fog</summary>
     <label class="row">
       <span class="lbl">Density</span>
-      <input type="range" data-se="fog.density" min="0" max="0.2" step="0.001" value="0.065">
-      <span class="val">0.065</span>
+      <input type="range" data-se="fog.density" min="0" max="0.2" step="0.001" value="0.018">
+      <span class="val">0.018</span>
     </label>
     <label class="row">
       <span class="lbl">Color</span>
@@ -500,15 +500,15 @@ canvas { display: block; }
     <summary>Background</summary>
     <label class="row">
       <span class="lbl">Inner</span>
-      <input type="color" data-se="bg.inner" value="#100a0b">
+      <input type="color" data-se="bg.inner" value="#040101">
     </label>
     <label class="row">
       <span class="lbl">Mid</span>
-      <input type="color" data-se="bg.mid" value="#0a0005">
+      <input type="color" data-se="bg.mid" value="#050003">
     </label>
     <label class="row">
       <span class="lbl">Outer</span>
-      <input type="color" data-se="bg.outer" value="#0f0000">
+      <input type="color" data-se="bg.outer" value="#070000">
     </label>
   </details>
 
@@ -651,8 +651,8 @@ canvas { display: block; }
     <summary>Board Glow</summary>
     <label class="row">
       <span class="lbl">Intensity</span>
-      <input type="range" data-se="boardGlow.intensity" min="0" max="3" step="0.02" value="0.50">
-      <span class="val">0.50</span>
+      <input type="range" data-se="boardGlow.intensity" min="0" max="3" step="0.02" value="0.48">
+      <span class="val">0.48</span>
     </label>
     <label class="row">
       <span class="lbl">Color</span>
@@ -669,18 +669,18 @@ canvas { display: block; }
     </label>
     <label class="row">
       <span class="lbl">Strength</span>
-      <input type="range" data-se="bloom.strength" min="0" max="3" step="0.01" value="0.30">
-      <span class="val">0.30</span>
+      <input type="range" data-se="bloom.strength" min="0" max="3" step="0.01" value="0.29">
+      <span class="val">0.29</span>
     </label>
     <label class="row">
       <span class="lbl">Radius</span>
-      <input type="range" data-se="bloom.radius" min="0" max="2" step="0.01" value="2.00">
-      <span class="val">2.00</span>
+      <input type="range" data-se="bloom.radius" min="0" max="2" step="0.01" value="1.38">
+      <span class="val">1.38</span>
     </label>
     <label class="row">
       <span class="lbl">Threshold</span>
-      <input type="range" data-se="bloom.threshold" min="0" max="1" step="0.01" value="0.00">
-      <span class="val">0.00</span>
+      <input type="range" data-se="bloom.threshold" min="0" max="1" step="0.01" value="0.15">
+      <span class="val">0.15</span>
     </label>
   </details>
 
@@ -1679,21 +1679,21 @@ const ModelLoader = {
 function initThree() {
   scene = new THREE.Scene();
 
-  // Near-black arena background — pure void with a whisper of warm red
+  // Pure-black void background — maximum contrast for the spotlight pool
   const bgCanvas = document.createElement('canvas');
   bgCanvas.width = 1024; bgCanvas.height = 1024;
   const bgCtx = bgCanvas.getContext('2d');
   const bgGrad = bgCtx.createRadialGradient(512, 512, 0, 512, 512, 720);
-  bgGrad.addColorStop(0, '#100a0b');    // faint warm-grey core
-  bgGrad.addColorStop(0.35, '#0a0005'); // near-black mid
-  bgGrad.addColorStop(1, '#0f0000');    // deep black-red falloff
+  bgGrad.addColorStop(0, '#040101');    // near-pure-black core
+  bgGrad.addColorStop(0.35, '#050003'); // void mid
+  bgGrad.addColorStop(1, '#070000');    // deep ember black falloff
   bgCtx.fillStyle = bgGrad;
   bgCtx.fillRect(0, 0, 1024, 1024);
   const bgTexture = new THREE.CanvasTexture(bgCanvas);
   scene.background = bgTexture;
 
-  // Warm-purple fog with a crimson tint, denser than before
-  scene.fog = new THREE.FogExp2(0x0a000a, 0.065);
+  // Very light warm-purple fog — just enough for depth, lets distant detail breathe
+  scene.fog = new THREE.FogExp2(0x0a000a, 0.018);
 
   // Camera
   camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
@@ -1759,7 +1759,7 @@ function initThree() {
   scene.add(rimHot);
 
   // Warm golden board glow — ties the gold inlays together
-  const boardGlow = new THREE.PointLight(0xFFD270, 0.50, 10);
+  const boardGlow = new THREE.PointLight(0xFFD270, 0.48, 10);
   boardGlow.position.set(0, 2.2, 0);
   scene.add(boardGlow);
 
@@ -1771,9 +1771,9 @@ function initThree() {
   composer.addPass(renderPass);
   const bloomPass = new THREE.UnrealBloomPass(
     new THREE.Vector2(window.innerWidth, window.innerHeight),
-    0.30, // strength
-    2.00, // radius
-    0.00  // threshold
+    0.29, // strength
+    1.38, // radius
+    0.15  // threshold
   );
   composer.addPass(bloomPass);
 
@@ -4078,11 +4078,11 @@ const SCENE_EDITOR_KEY = 'hyruleChess.sceneEditor.v1';
 const SCENE_DEFAULTS = {
   'tm.mode': 'LinearToneMapping',
   'tm.exposure': 1.30,
-  'fog.density': 0.065,
+  'fog.density': 0.018,
   'fog.color': '#0a000a',
-  'bg.inner': '#100a0b',
-  'bg.mid': '#0a0005',
-  'bg.outer': '#0f0000',
+  'bg.inner': '#040101',
+  'bg.mid': '#050003',
+  'bg.outer': '#070000',
   'ambient.intensity': 0.09,
   'ambient.color': '#ff9214',
   'keySpot.intensity': 2.85,
@@ -4103,12 +4103,12 @@ const SCENE_DEFAULTS = {
   'rimHot.intensity': 0.80,
   'rimHot.color': '#C0301A',
   'rimHot.x': 5.3, 'rimHot.y': 5.0, 'rimHot.z': -7,
-  'boardGlow.intensity': 0.50,
+  'boardGlow.intensity': 0.48,
   'boardGlow.color': '#FFD270',
   'bloom.enabled': 1,
-  'bloom.strength': 0.30,
-  'bloom.radius': 2.00,
-  'bloom.threshold': 0.00,
+  'bloom.strength': 0.29,
+  'bloom.radius': 1.38,
+  'bloom.threshold': 0.15,
 };
 
 function loadSavedSceneConfig() {
