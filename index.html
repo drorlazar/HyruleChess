@@ -740,6 +740,43 @@ canvas { display: block; }
   font-family: 'Cinzel', serif; letter-spacing: 1px; text-align: center;
 }
 
+/* Model version toggle (v1 vs v2) */
+#mainMenu.u2 .model-version-toggle {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 22px; padding: 8px 14px;
+  background: rgba(14, 8, 4, .55);
+  border: 1px solid var(--u2-glass-border);
+  border-radius: 999px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+#mainMenu.u2 .model-version-toggle .lbl {
+  font-family: 'Cinzel', serif; font-size: 11px;
+  letter-spacing: 2px; color: var(--u2-gold-dim);
+  text-transform: uppercase;
+}
+#mainMenu.u2 .model-version-toggle button {
+  padding: 6px 14px;
+  background: rgba(20, 12, 6, .7);
+  border: 1px solid var(--u2-glass-border);
+  color: var(--u2-parchment);
+  font-family: 'MedievalSharp', serif;
+  font-size: 13px;
+  letter-spacing: 1px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all .15s;
+}
+#mainMenu.u2 .model-version-toggle button:hover {
+  border-color: var(--u2-gold-warm);
+}
+#mainMenu.u2 .model-version-toggle button.active {
+  background: linear-gradient(180deg, #8B6914, #3a2000);
+  border-color: var(--u2-gold);
+  color: #fff1b4;
+  box-shadow: var(--u2-glow);
+}
+
 /* ===== HUD container ===== */
 #hud.u2 {
   position: fixed; inset: 0; z-index: 50;
@@ -1529,6 +1566,11 @@ canvas { display: block; }
       <div class="waiting">Waiting for opponent…</div>
     </div>
     <div id="onlineError"></div>
+  </div>
+  <div class="model-version-toggle" id="modelVersionToggle">
+    <span class="lbl">Models:</span>
+    <button data-ver="1">v1 Low-Poly</button>
+    <button data-ver="2">v2 Switch</button>
   </div>
 </div>
 
@@ -2859,8 +2901,9 @@ const PIECE_SCALE_ADJUST = {
   'w_B': 0.90,
   'w_N': 0.90, 'b_N': 0.90,
   'w_R': 0.90, 'b_R': 0.90,
-  // Hyrule (white) pawns felt undersized next to the new back rank — +25%
-  'w_P': 1.25,
+  // Hyrule (white) pawns: keep at template-normalized size (previous +25%
+  // boost made them too large vs the back rank in v2)
+  'w_P': 1.00,
   // Ganon pawns keep their normalized size
 };
 
@@ -2916,24 +2959,190 @@ const captureFlashLights = [];
 // ============================================================
 // GLB MODEL LOADER
 // ============================================================
+// Programmatic rune pedestal disc (v2 only).
+// Canvas-drawn rune texture + flat cylinder. Generated once per side and
+// cached; getDisc() returns a shared clone. Sheikah-blue for Hyrule,
+// Gerudo-crimson for Ganon.
+// ============================================================
+function buildRuneDiscTexture(side) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  const ctx = c.getContext('2d');
+
+  const conf = side === 'w'
+    ? { bg1: '#D8E4EE', bg2: '#A8BACA', rim: '#6C7D8E', glow: '#5AE3FF', ink: '#FFFFFF' }
+    : { bg1: '#3A1A14', bg2: '#1A0A08', rim: '#5A2A1A', glow: '#FF5A2E', ink: '#FFC8A0' };
+
+  // Radial base — dark center to slightly lighter edge
+  const grd = ctx.createRadialGradient(256, 256, 20, 256, 256, 250);
+  grd.addColorStop(0, conf.bg2);
+  grd.addColorStop(1, conf.bg1);
+  ctx.fillStyle = grd;
+  ctx.beginPath(); ctx.arc(256, 256, 250, 0, Math.PI * 2); ctx.fill();
+
+  // Outer rim ring
+  ctx.strokeStyle = conf.rim;
+  ctx.lineWidth = 22;
+  ctx.beginPath(); ctx.arc(256, 256, 245, 0, Math.PI * 2); ctx.stroke();
+
+  // Inner rune ring (glow)
+  ctx.strokeStyle = conf.glow;
+  ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.arc(256, 256, 200, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(256, 256, 180, 0, Math.PI * 2); ctx.stroke();
+
+  // 16 evenly-spaced rune glyphs between the two rings
+  ctx.fillStyle = conf.glow;
+  const n = 16;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    ctx.save();
+    ctx.translate(256, 256);
+    ctx.rotate(a);
+    ctx.translate(0, -190);
+    ctx.rotate(Math.PI);
+    // Alternating simple glyphs
+    const glyph = i % 4;
+    ctx.beginPath();
+    if (glyph === 0) {
+      ctx.fillRect(-3, -8, 6, 16);
+    } else if (glyph === 1) {
+      ctx.moveTo(0, -10); ctx.lineTo(-8, 8); ctx.lineTo(8, 8); ctx.closePath(); ctx.fill();
+    } else if (glyph === 2) {
+      ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
+    } else {
+      ctx.fillRect(-7, -1, 14, 2);
+      ctx.fillRect(-1, -7, 2, 14);
+    }
+    ctx.restore();
+  }
+
+  // Center emblem
+  ctx.save();
+  ctx.translate(256, 256);
+  ctx.strokeStyle = conf.glow;
+  ctx.fillStyle = conf.glow;
+  ctx.lineWidth = 6;
+  if (side === 'w') {
+    // Triforce — three equilateral triangles forming the big one
+    const s = 60;
+    const h = s * Math.sqrt(3) / 2;
+    // top small
+    ctx.beginPath();
+    ctx.moveTo(0, -h);
+    ctx.lineTo(-s / 2, 0);
+    ctx.lineTo(s / 2, 0);
+    ctx.closePath();
+    ctx.stroke();
+    // bottom-left small
+    ctx.beginPath();
+    ctx.moveTo(-s / 2, 0);
+    ctx.lineTo(-s, h);
+    ctx.lineTo(0, h);
+    ctx.closePath();
+    ctx.stroke();
+    // bottom-right small
+    ctx.beginPath();
+    ctx.moveTo(s / 2, 0);
+    ctx.lineTo(0, h);
+    ctx.lineTo(s, h);
+    ctx.closePath();
+    ctx.stroke();
+  } else {
+    // Gerudo crescent + crossed blades
+    ctx.beginPath();
+    ctx.arc(0, -6, 50, Math.PI * 0.15, Math.PI - 0.15, false);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-38, 38); ctx.lineTo(38, -38); ctx.stroke();
+    ctx.moveTo(-38, -38); ctx.lineTo(38, 38); ctx.stroke();
+  }
+  ctx.restore();
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.anisotropy = 8;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+function buildRuneDisc(side) {
+  const radius = 0.42;    // fits inside a 1.0-unit tile with margin
+  const thickness = 0.08; // flat, ~5:1 diameter:height
+  const topTex = buildRuneDiscTexture(side);
+
+  const conf = side === 'w'
+    ? { rim: 0x6C7D8E, emissive: 0x4FB8FF, emissiveIntensity: 0.55 }
+    : { rim: 0x3A1510, emissive: 0xC0301A, emissiveIntensity: 0.45 };
+
+  const geo = new THREE.CylinderGeometry(radius, radius * 0.96, thickness, 40);
+  const topMat = new THREE.MeshStandardMaterial({
+    map: topTex,
+    emissive: new THREE.Color(conf.emissive),
+    emissiveMap: topTex,
+    emissiveIntensity: conf.emissiveIntensity,
+    roughness: 0.45,
+    metalness: 0.35,
+  });
+  const sideMat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(conf.rim),
+    roughness: 0.55,
+    metalness: 0.55,
+  });
+  // CylinderGeometry material groups: [side, top, bottom]
+  const mesh = new THREE.Mesh(geo, [sideMat, topMat, sideMat]);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+
+  const group = new THREE.Group();
+  group.add(mesh);
+  // Move the cylinder up so the disc's bottom sits at y=0 (piece base level)
+  mesh.position.y = thickness / 2;
+  group.userData.discHeight = thickness;
+  return group;
+}
+
+// ============================================================
+// Model version toggle. URL param ?v=2 selects the new
+// Link's-Awakening-style models (v2), which use a separate disc
+// pedestal composited at runtime. localStorage remembers the choice.
+const MODEL_VERSION = (() => {
+  try {
+    const p = new URLSearchParams(location.search).get('v');
+    if (p === '1' || p === '2') { localStorage.setItem('hyruleChess.modelVersion', 'v' + p); return 'v' + p; }
+  } catch (e) {}
+  try { return localStorage.getItem('hyruleChess.modelVersion') || 'v1'; } catch (e) { return 'v1'; }
+})();
+// v1 uses the legacy paths (no subdirectory, disc baked into each GLB).
+// v2 uses assets/models/v2/* and loads two extra disc GLBs (one per side)
+// which are composited under each piece at placement time.
+const MODEL_DIR = MODEL_VERSION === 'v2' ? 'assets/models/v2' : 'assets/models';
+const USE_SEPARATE_DISCS = (MODEL_VERSION === 'v2');
+
 const ModelLoader = {
   models: {},
   loaded: false,
 
   MODEL_MAP: {
-    'w_K': 'assets/models/hyrule_king_link.glb',
-    'w_Q': 'assets/models/hyrule_queen_zelda.glb',
-    'w_B': 'assets/models/hyrule_bishop_impa.glb',
-    'w_N': 'assets/models/hyrule_knight_epona.glb',
-    'w_R': 'assets/models/hyrule_rook_tower.glb',
-    'w_P': 'assets/models/hyrule_pawn_soldier.glb',
-    'b_K': 'assets/models/ganon_king_ganondorf.glb',
-    'b_Q': 'assets/models/ganon_queen_phantom.glb',
-    'b_B': 'assets/models/ganon_bishop_wizzrobe.glb',
-    'b_N': 'assets/models/ganon_knight_darknut.glb',
-    'b_R': 'assets/models/ganon_rook_tower.glb',
-    'b_P': 'assets/models/ganon_pawn_moblin.glb',
+    'w_K': `${MODEL_DIR}/hyrule_king_link.glb`,
+    'w_Q': `${MODEL_DIR}/hyrule_queen_zelda.glb`,
+    'w_B': `${MODEL_DIR}/hyrule_bishop_impa.glb`,
+    'w_N': `${MODEL_DIR}/hyrule_knight_epona.glb`,
+    'w_R': `${MODEL_DIR}/hyrule_rook_tower.glb`,
+    'w_P': `${MODEL_DIR}/hyrule_pawn_soldier.glb`,
+    'b_K': `${MODEL_DIR}/ganon_king_ganondorf.glb`,
+    'b_Q': `${MODEL_DIR}/ganon_queen_phantom.glb`,
+    'b_B': `${MODEL_DIR}/ganon_bishop_wizzrobe.glb`,
+    'b_N': `${MODEL_DIR}/ganon_knight_darknut.glb`,
+    'b_R': `${MODEL_DIR}/ganon_rook_tower.glb`,
+    'b_P': `${MODEL_DIR}/ganon_pawn_moblin.glb`,
   },
+
+  // v2 only: separate disc pedestal GLBs, one per side
+  DISC_MAP: {
+    'w': `${MODEL_DIR}/disc_hyrule.glb`,
+    'b': `${MODEL_DIR}/disc_ganon.glb`,
+  },
+  discs: {},  // loaded Three.js templates: { w: Group, b: Group }
 
   // FIX 8: Updated height targets for clear visual hierarchy
   HEIGHT_MAP: {
@@ -3007,10 +3216,44 @@ const ModelLoader = {
       );
     }
 
+    // v2 only: build two shared disc pedestals PROGRAMMATICALLY.
+    // We originally tried Tripo3D for the discs but it kept baking the
+    // reference image's 3/4 camera tilt INTO the mesh, producing discs
+    // that were too thick/tilted. Programmatic cylinders guarantee a
+    // perfectly flat top face, exact thickness, and consistent sizing
+    // across both sides.
+    if (USE_SEPARATE_DISCS) {
+      this.discs['w'] = buildRuneDisc('w');
+      this.discs['b'] = buildRuneDisc('b');
+      console.log(`Built programmatic discs: w, b`);
+    }
+
     await Promise.all(promises);
     this.loaded = true;
     const loadedCount = Object.keys(this.models).length;
-    console.log(`Models loaded: ${loadedCount}/${Object.keys(this.MODEL_MAP).length}`);
+    const discCount = Object.keys(this.discs).length;
+    console.log(`Models loaded: ${loadedCount}/${Object.keys(this.MODEL_MAP).length}, discs: ${discCount} (version: ${MODEL_VERSION})`);
+  },
+
+  getDisc(color) {
+    const tpl = this.discs[color];
+    if (!tpl) return null;
+    const clone = tpl.clone();
+    // Preserve the stored disc height on the clone's userData
+    clone.userData.discHeight = tpl.userData.discHeight;
+    // Programmatic discs use MULTIPLE materials per mesh
+    // ([side, top, bottom]); handle both the array and single-material
+    // shapes so this path also works for GLB-loaded discs.
+    clone.traverse(child => {
+      if (child.isMesh && child.material) {
+        if (Array.isArray(child.material)) {
+          child.material = child.material.map(m => m.clone());
+        } else {
+          child.material = child.material.clone();
+        }
+      }
+    });
+    return clone;
   },
 
   getModel(type, color) {
@@ -4721,6 +4964,14 @@ function clearPieces() {
   for (const key in pieceMeshMap) delete pieceMeshMap[key];
 }
 
+// In v2 mode each piece is a THREE.Group containing a disc child and a
+// character child. We animate the CHARACTER child's scale/rotation, and the
+// parent Group's position. In v1 mode the mesh is a single node and
+// `animNode` points back at itself.
+function getAnimNode(mesh) {
+  return (mesh && mesh.userData && mesh.userData.charMesh) || mesh;
+}
+
 function placePieces(animated) {
   clearPieces();
   const b = Chess.getBoard();
@@ -4728,25 +4979,63 @@ function placePieces(animated) {
     for (let c = 0; c < 8; c++) {
       const piece = b[r][c];
       if (!piece) continue;
-      const mesh = createPieceMesh(piece.type, piece.color);
-      // Capture the template's baked scale BEFORE any animation touches it.
-      // GLB models are normalized per piece type in ModelLoader (e.g. King
-      // lands at 2.10, Pawn at 1.16). Fallback builders use PIECE_SCALE.
-      // Every subsequent animation must multiply against this value instead
-      // of hardcoding 1.0, otherwise pieces render at their raw mesh size.
-      const baseScale = mesh.scale.x;
+
+      const charMesh = createPieceMesh(piece.type, piece.color);
+      // Capture the character's template-baked scale BEFORE any animation.
+      // In v2 this is what the animation system multiplies against; in v1 it
+      // represents the whole piece including the baked-in disc.
+      const baseScale = charMesh.scale.x;
+
+      // Two-part composition vs single-mesh
+      // ------------------------------------
+      // v1: `mesh` IS the character (+baked disc). charMesh === mesh.
+      // v2: `mesh` is a Group containing [discClone, charMesh]. charMesh
+      //     is stored on userData.charMesh so animations can reach it.
+      let mesh;
+      let discHeight = 0;
+      if (USE_SEPARATE_DISCS) {
+        mesh = new THREE.Group();
+        const disc = ModelLoader.getDisc(piece.color);
+        if (disc) {
+          mesh.add(disc);
+          discHeight = disc.userData.discHeight || 0;
+        }
+        // Raise the character so its feet sit on top of the disc
+        charMesh.position.y = discHeight;
+        mesh.add(charMesh);
+      } else {
+        mesh = charMesh;
+      }
+
       const pos = boardToWorld(r, c);
       mesh.position.set(pos.x, 0, pos.z);
 
-      // Rotate pieces to face their opponent across the board
-      // White faces -Z (toward Ganon), Black faces +Z (toward Hyrule)
-      // White knight (Epona) model has a different local forward axis — offset only white knights
-      const whiteKnightOffset = (piece.type === 'N' && piece.color === 'w') ? Math.PI / 2 : 0;
-      const baseRotY = (piece.color === 'w' ? Math.PI / 2 : -Math.PI / 2) + whiteKnightOffset;
-      mesh.rotation.y = baseRotY;
+      // Rotate pieces to face their opponent across the board.
+      // In v2 we rotate the CHARACTER child so the disc stays stationary;
+      // in v1 we rotate the whole mesh.
+      // v2 Hyrule Epona's local forward is -Z, so the default +π/2 turns
+      // her sideways — apply a -π/2 offset so she faces Ganon (rotY = 0).
+      // v1 white knight has a 90° quirk in the opposite direction.
+      let knightOffset = 0;
+      if (piece.type === 'N' && piece.color === 'w') {
+        knightOffset = USE_SEPARATE_DISCS ? -Math.PI / 2 : Math.PI / 2;
+      }
+      const baseRotY = (piece.color === 'w' ? Math.PI / 2 : -Math.PI / 2) + knightOffset;
+      if (USE_SEPARATE_DISCS) {
+        charMesh.rotation.y = baseRotY;
+      } else {
+        mesh.rotation.y = baseRotY;
+      }
 
-      mesh.userData = { row: r, col: c, type: piece.type, color: piece.color, baseRotY: baseRotY, baseScale: baseScale };
-      mesh.traverse(child => {
+      mesh.userData = {
+        row: r, col: c, type: piece.type, color: piece.color,
+        baseRotY: baseRotY,
+        baseScale: baseScale,
+        charMesh: USE_SEPARATE_DISCS ? charMesh : null,
+        discHeight: discHeight,
+      };
+      // Propagate userData down for raycasting / hit testing
+      charMesh.traverse(child => {
         if (child.isMesh) {
           child.castShadow = true;
           child.userData = mesh.userData;
@@ -4757,13 +5046,14 @@ function placePieces(animated) {
       breathingPhases[`${r}_${c}`] = Math.random() * Math.PI * 2;
 
       if (animated) {
-        mesh.scale.set(0, 0, 0);
+        // Grow the CHARACTER from 0 → baseScale. Disc stays full size.
+        charMesh.scale.set(0, 0, 0);
         const delay = (r * 8 + c) * 30;
         animations.push({
           mesh, prop: 'scale', from: 0, to: 1, duration: 400, startTime: Date.now() + delay,
           onUpdate: (val) => {
             const s = val * baseScale;
-            mesh.scale.set(s, s, s);
+            charMesh.scale.set(s, s, s);
           }
         });
       }
@@ -5321,17 +5611,19 @@ function animateMove(fromRow, fromCol, toRow, toCol, callback) {
     onComplete: () => {
       // GAME JUICE: Squash & stretch on landing
       // Phase 1: Squash (100ms) - compress Y, expand X/Z
-      // All scale ops multiply against mesh.userData.baseScale so the template's
-      // per-piece normalization (King 2.10, Pawn 1.16, etc.) is preserved.
+      // All scale ops go through getAnimNode so v2 pieces scale only the
+      // character (the disc below stays rigid) while v1 still scales the
+      // single-mesh piece.
       const squashStart = Date.now();
       const squashDuration = 100;
       const bs = mesh.userData.baseScale || 1;
+      const anim = getAnimNode(mesh);
       animations.push({
         mesh, duration: squashDuration, startTime: squashStart,
         onUpdate: (sp) => {
           const squashY = 1 - 0.15 * Math.sin(sp * Math.PI); // dip to 0.85
           const squashXZ = 1 + 0.1 * Math.sin(sp * Math.PI); // expand to 1.1
-          mesh.scale.set(bs * squashXZ, bs * squashY, bs * squashXZ);
+          anim.scale.set(bs * squashXZ, bs * squashY, bs * squashXZ);
           mesh.position.y = 0.1 * (1 - sp); // settle from slight height
         },
         onComplete: () => {
@@ -5344,12 +5636,12 @@ function animateMove(fromRow, fromCol, toRow, toCol, callback) {
               // Spring overshoot on Y scale
               const springY = 1 + 0.06 * Math.sin(bp * Math.PI * 2) * (1 - bp);
               const springXZ = 1 - 0.04 * Math.sin(bp * Math.PI * 2) * (1 - bp);
-              mesh.scale.set(bs * springXZ, bs * springY, bs * springXZ);
+              anim.scale.set(bs * springXZ, bs * springY, bs * springXZ);
               mesh.position.y = 0;
             },
             onComplete: () => {
               mesh.position.set(endPos.x, 0, endPos.z);
-              mesh.scale.set(bs, bs, bs);
+              anim.scale.set(bs, bs, bs);
               pieceMeshMap[`${toRow}_${toCol}`] = mesh;
               mesh.traverse(child => {
                 if (child.isMesh) {
@@ -5376,7 +5668,10 @@ function animateCapture(row, col, callback) {
   delete pieceMeshMap[`${row}_${col}`];
   const duration = 350;
   const startTime = Date.now();
-  const startScale = mesh.scale.x;
+  // In v2, read the character's current scale (the parent Group is always at
+  // scale 1.0). In v1, animNode === mesh so this is equivalent.
+  const anim = getAnimNode(mesh);
+  const startScale = anim.scale.x;
   const capturedColor = mesh.userData.color;
   const capturedPos = mesh.position.clone();
 
@@ -5387,9 +5682,9 @@ function animateCapture(row, col, callback) {
     mesh, duration, startTime,
     onUpdate: (progress) => {
       const s = startScale * (1 - progress);
-      mesh.scale.set(s, s, s);
-      mesh.rotation.y += 0.15; // spin while shattering
-      mesh.rotation.x += 0.08;
+      anim.scale.set(s, s, s);
+      anim.rotation.y += 0.15; // spin while shattering (character only in v2)
+      anim.rotation.x += 0.08;
       mesh.position.y = -progress * 0.3;
       mesh.traverse(child => {
         if (child.isMesh && child.material) {
@@ -5529,10 +5824,12 @@ function animate() {
       const isAnimating = animations.some(a => a.mesh === mesh);
       if (!isAnimating && mesh.userData.row !== undefined) {
         const basePos = boardToWorld(mesh.userData.row, mesh.userData.col);
+        // Breath (vertical bob) moves the PARENT so the disc moves with the
+        // piece. Rotation oscillation applies only to the character (disc
+        // stays rigid in v2) via getAnimNode.
         mesh.position.y = breathOffset;
-        // Add oscillation to the piece's base facing rotation
         const baseRotY = mesh.userData.baseRotY !== undefined ? mesh.userData.baseRotY : 0;
-        mesh.rotation.y = baseRotY + rotOffset;
+        getAnimNode(mesh).rotation.y = baseRotY + rotOffset;
       }
     }
 
@@ -5983,16 +6280,17 @@ function selectPiece(row, col) {
   spawnFairyBurst(row, col, 22);
   showValidMoves(moves);
 
-  // GAME JUICE: Anticipation (50ms wind-up scale to 0.95) then pop up
-  // Scale multipliers are applied against mesh.userData.baseScale so the
-  // template normalization (King 2.10, Pawn 1.16, ...) is preserved.
+  // GAME JUICE: Anticipation (50ms wind-up scale to 0.95) then pop up.
+  // v2 pieces scale only the character (disc stays rigid); v1 scales the
+  // whole mesh. Routed through getAnimNode.
   const windUpStart = Date.now();
   const bs = mesh.userData.baseScale || 1;
+  const anim = getAnimNode(mesh);
   animations.push({
     mesh, duration: 50, startTime: windUpStart,
     onUpdate: (progress) => {
       const s = 1 - 0.05 * progress; // scale down to 0.95x baseline
-      mesh.scale.set(bs * s, bs * s, bs * s);
+      anim.scale.set(bs * s, bs * s, bs * s);
     },
     onComplete: () => {
       // Then pop up with overshoot + settle
@@ -6005,11 +6303,11 @@ function selectPiece(row, col) {
           mesh.position.y = spring * 0.3;
           // Scale back to baseline with slight overshoot
           const scaleSpring = 1 + 0.08 * Math.sin(progress * Math.PI);
-          mesh.scale.set(bs * scaleSpring, bs * scaleSpring, bs * scaleSpring);
+          anim.scale.set(bs * scaleSpring, bs * scaleSpring, bs * scaleSpring);
         },
         onComplete: () => {
           mesh.position.y = 0.3;
-          mesh.scale.set(bs, bs, bs);
+          anim.scale.set(bs, bs, bs);
         }
       });
     }
@@ -6123,13 +6421,36 @@ function executeMove(move, callback) {
         const newBoard = Chess.getBoard();
         const newPiece = newBoard[toRow][toCol];
         if (newPiece) {
-          const newMesh = createPieceMesh(newPiece.type, newPiece.color);
-          const newBaseScale = newMesh.scale.x;
+          // Promotion: swap in a new piece. Same two-part treatment as
+          // placePieces so the promoted piece gets its disc under it in v2.
+          const newChar = createPieceMesh(newPiece.type, newPiece.color);
+          const newBaseScale = newChar.scale.x;
           const pos = boardToWorld(toRow, toCol);
+
+          let newMesh;
+          let discHeight = 0;
+          if (USE_SEPARATE_DISCS) {
+            newMesh = new THREE.Group();
+            const disc = ModelLoader.getDisc(newPiece.color);
+            if (disc) {
+              newMesh.add(disc);
+              discHeight = disc.userData.discHeight || 0;
+            }
+            newChar.position.y = discHeight;
+            newMesh.add(newChar);
+          } else {
+            newMesh = newChar;
+          }
+
           newMesh.position.set(pos.x, 0, pos.z);
-          newMesh.rotation.y = 0; // all pieces face camera
-          newMesh.userData = { row: toRow, col: toCol, type: newPiece.type, color: newPiece.color, baseScale: newBaseScale };
-          newMesh.traverse(child => {
+          newChar.rotation.y = 0; // face camera
+          newMesh.userData = {
+            row: toRow, col: toCol, type: newPiece.type, color: newPiece.color,
+            baseScale: newBaseScale,
+            charMesh: USE_SEPARATE_DISCS ? newChar : null,
+            discHeight: discHeight,
+          };
+          newChar.traverse(child => {
             if (child.isMesh) {
               child.castShadow = true;
               child.userData = newMesh.userData;
@@ -6137,12 +6458,13 @@ function executeMove(move, callback) {
           });
           piecesGroup.add(newMesh);
           pieceMeshMap[`${toRow}_${toCol}`] = newMesh;
-          newMesh.scale.set(0, 0, 0);
+          // Grow the character from 0 → baseScale; disc stays full size.
+          newChar.scale.set(0, 0, 0);
           animations.push({
             mesh: newMesh, duration: 300, startTime: Date.now(),
             onUpdate: (val) => {
               const s = val * newBaseScale;
-              newMesh.scale.set(s, s, s);
+              newChar.scale.set(s, s, s);
             }
           });
         }
@@ -7044,6 +7366,29 @@ document.getElementById('btnBackMenu').addEventListener('click', () => {
       sel.removeAllRanges();
       sel.addRange(range);
     }
+  });
+})();
+
+// ============================================================
+// MODEL VERSION TOGGLE (v1 / v2)
+// ============================================================
+(function wireModelVersionToggle() {
+  const wrap = document.getElementById('modelVersionToggle');
+  if (!wrap) return;
+  const current = (typeof MODEL_VERSION !== 'undefined') ? MODEL_VERSION : 'v1';
+  wrap.querySelectorAll('button').forEach(btn => {
+    const v = 'v' + btn.dataset.ver;
+    if (v === current) btn.classList.add('active');
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (v === current) return;
+      // Persist + reload into the new version (URL param also updates
+      // localStorage via MODEL_VERSION init).
+      try { localStorage.setItem('hyruleChess.modelVersion', v); } catch (e) {}
+      const url = new URL(location.href);
+      url.searchParams.set('v', btn.dataset.ver);
+      location.href = url.toString();
+    });
   });
 })();
 
