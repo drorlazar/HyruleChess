@@ -904,6 +904,117 @@ canvas { display: block; }
 }
 #hud.u2 .rail-actions .rail-btn.hidden { display: none; }
 
+/* ===== In-rail "Game" section (right rail only) =====
+   Visually separated from the captures list above with a top
+   border + centered "GAME" legend so players don't confuse the
+   chronicle with the captures display. */
+#hud.u2 .rail-game {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin-top: 18px;
+  padding-top: 20px;
+  border-top: 2px solid rgba(220, 180, 90, .55);
+}
+#hud.u2 .rail-game-legend {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, rgba(20,12,6,.95) 0%, rgba(8,4,0,.95) 100%);
+  padding: 0 14px;
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  letter-spacing: 4px;
+  color: var(--u2-gold);
+  text-transform: uppercase;
+  font-weight: 700;
+  text-shadow: 0 0 8px rgba(255,215,0,.45);
+  white-space: nowrap;
+}
+#hud.u2 .rail-game .moves-scroll {
+  flex: 1;
+  min-height: 80px;
+}
+
+/* In-rail audio controls (replaces standalone widget on desktop) */
+#hud.u2 .rail-audio {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 4px;
+  margin: 12px 0 0 0;
+  border-top: 1px dashed rgba(220, 180, 90, .18);
+  border-bottom: 1px dashed rgba(220, 180, 90, .18);
+}
+#hud.u2 .rail-audio .rail-mute-btn {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: rgba(0,0,0,.45);
+  border: 1px solid var(--u2-glass-border);
+  color: var(--u2-gold);
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  flex-shrink: 0;
+  transition: all .12s;
+}
+#hud.u2 .rail-audio .rail-mute-btn:hover { border-color: var(--u2-gold); box-shadow: 0 0 10px rgba(255,215,0,.45); }
+#hud.u2 .rail-audio .rail-mute-btn .ico-off {
+  position: absolute; inset: 0;
+  display: none;
+  align-items: center; justify-content: center;
+  font-size: 18px;
+  color: #ff9090;
+}
+#hud.u2 .rail-audio.muted .rail-mute-btn { color: #ff9090; border-color: #c44040; }
+#hud.u2 .rail-audio.muted .rail-mute-btn .ico-on { opacity: .35; }
+#hud.u2 .rail-audio.muted .rail-mute-btn .ico-off { display: flex; }
+#hud.u2 .rail-audio .rail-vol-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: linear-gradient(to right, var(--u2-bronze), rgba(220,180,90,.25));
+  border-radius: 2px;
+  outline: none;
+}
+#hud.u2 .rail-audio .rail-vol-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--u2-gold);
+  border: 1px solid #2a1a05;
+  box-shadow: 0 0 6px rgba(255,215,0,.55);
+  cursor: pointer;
+}
+#hud.u2 .rail-audio .rail-vol-slider::-moz-range-thumb {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--u2-gold);
+  border: 1px solid #2a1a05;
+  cursor: pointer;
+}
+
+/* Game-section action row uses the same .rail-actions styles defined above,
+   but we strip its top border (the .rail-audio block already provides one). */
+#hud.u2 .rail-game .rail-actions {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: none;
+}
+
+/* Hide standalone audio widget on desktop — the in-rail one takes over */
+@media (min-width: 901px) {
+  #audioWidget.u2 { display: none !important; }
+}
+
 /* ===== Turn pill (top-center) ===== */
 #hud.u2 .turn-pill {
   position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
@@ -1038,19 +1149,20 @@ canvas { display: block; }
 }
 
 @media (max-width: 900px) {
-  /* On mobile, slot widget into the top-right of the safe area but small */
+  /* On mobile, the top bar already fills top-right with the Ganon slab.
+     Put the audio widget at bottom-left, floating just above the bottom bar
+     where nothing else lives. */
   #audioWidget.u2 {
-    top: calc(env(safe-area-inset-top, 0px) + 6px);
-    right: 8px;
+    top: auto;
+    right: auto;
+    left: 8px;
+    bottom: calc(var(--u2-mobile-bot) + env(safe-area-inset-bottom, 0px) + 8px);
     padding: 4px 10px 4px 4px;
-    z-index: 99;
     transform: scale(.85);
-    transform-origin: top right;
+    transform-origin: bottom left;
+    z-index: 110;
   }
   #audioWidget.u2 .u2-vol-slider { width: 72px; }
-  /* Auto-hide widget on mobile when game is active to give the board breathing room.
-     User can still tap to unhide via long-press anywhere. */
-  body.audio-collapsed #audioWidget.u2 .u2-vol-slider { display: none; }
 }
 
 /* ============================================================
@@ -1345,7 +1457,7 @@ canvas { display: block; }
     <span class="who">Hyrule's Turn</span>
   </div>
 
-  <!-- Desktop: Hyrule rail (left) -->
+  <!-- Desktop: Hyrule rail (left) — info only, no controls -->
   <div class="rail rail-left" id="railLeft">
     <div class="rail-header">
       <div class="avatar avatar-h">⚔</div>
@@ -1358,12 +1470,9 @@ canvas { display: block; }
       <div class="rail-section-title"><span>Captured</span><span class="n" data-slot="cap-w-n">0</span></div>
       <div class="captures-grid" id="capturedWhite"></div>
     </div>
-    <div class="rail-actions">
-      <button class="rail-btn" id="btnMenu">◆ Menu</button>
-    </div>
   </div>
 
-  <!-- Desktop: Ganon rail (right) -->
+  <!-- Desktop: Ganon rail (right) — info + dedicated Game controls section -->
   <div class="rail rail-right" id="railRight">
     <div class="rail-header">
       <div class="avatar avatar-g">☠</div>
@@ -1376,13 +1485,23 @@ canvas { display: block; }
       <div class="rail-section-title"><span>Captured</span><span class="n" data-slot="cap-b-n">0</span></div>
       <div class="captures-grid" id="capturedBlack"></div>
     </div>
-    <div class="rail-section flex-grow">
+    <!-- Visually separated Game controls section: chronicle + audio + actions -->
+    <div class="rail-game">
+      <div class="rail-game-legend">⚜ GAME ⚜</div>
       <div class="rail-section-title"><span>Chronicle</span><span class="n" data-slot="move-num">Move 1</span></div>
       <div class="moves-scroll" id="moveList"></div>
-    </div>
-    <div class="rail-actions">
-      <button class="rail-btn danger hidden" id="btnResignRail">⚑ Resign</button>
-      <button class="rail-btn" id="btnNewGame">↻ New</button>
+      <div class="rail-audio" id="railAudio">
+        <button class="rail-mute-btn" id="railMuteBtn" title="Mute (M)" aria-label="Mute toggle">
+          <span class="ico-on">♫</span>
+          <span class="ico-off">⃠</span>
+        </button>
+        <input type="range" min="0" max="100" value="70" class="rail-vol-slider" id="railMasterSlider" aria-label="Master volume">
+      </div>
+      <div class="rail-actions">
+        <button class="rail-btn" id="btnNewGame">↻ New</button>
+        <button class="rail-btn" id="btnMenu">◆ Menu</button>
+        <button class="rail-btn danger hidden" id="btnResignRail">⚑ Resign</button>
+      </div>
     </div>
   </div>
 
@@ -6397,35 +6516,50 @@ document.getElementById('btnMenu').addEventListener('click', () => {
   // Mark body so the styled promo/gameover dialogs apply
   document.body.classList.add('u2-active');
 
-  // ----- Audio widget -----
-  const widget    = document.getElementById('audioWidget');
-  const muteBtn   = document.getElementById('audioMuteBtn');
-  const slider    = document.getElementById('audioMasterSlider');
-  function syncWidget() {
+  // ----- Audio controls (standalone widget for mobile, in-rail for desktop) -----
+  const widget       = document.getElementById('audioWidget');
+  const muteBtn      = document.getElementById('audioMuteBtn');
+  const slider       = document.getElementById('audioMasterSlider');
+  const railAudio    = document.getElementById('railAudio');
+  const railMuteBtn  = document.getElementById('railMuteBtn');
+  const railSlider   = document.getElementById('railMasterSlider');
+
+  function syncAudioUI() {
     const s = SoundEngine.getSettings();
-    if (slider) slider.value = String(Math.round(s.master * 100));
-    if (widget) widget.classList.toggle('muted', s.muted);
+    const v = String(Math.round(s.master * 100));
+    if (slider)     slider.value = v;
+    if (widget)     widget.classList.toggle('muted', s.muted);
+    if (railSlider) railSlider.value = v;
+    if (railAudio)  railAudio.classList.toggle('muted', s.muted);
   }
-  syncWidget();
-  if (muteBtn) {
-    muteBtn.addEventListener('click', (e) => {
+  syncAudioUI();
+
+  function bindMute(btn) {
+    if (!btn) return;
+    btn.addEventListener('click', (e) => {
       e.stopPropagation();
       SoundEngine.toggleMute();
-      syncWidget();
+      syncAudioUI();
     });
   }
-  if (slider) {
-    slider.addEventListener('input', (e) => {
+  function bindSlider(sl) {
+    if (!sl) return;
+    sl.addEventListener('input', (e) => {
       SoundEngine.setMaster(parseInt(e.target.value, 10) / 100);
-      syncWidget();
+      syncAudioUI();
     });
   }
+  bindMute(muteBtn);
+  bindMute(railMuteBtn);
+  bindSlider(slider);
+  bindSlider(railSlider);
+
   // 'M' keyboard shortcut
   document.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     if (e.key === 'm' || e.key === 'M') {
       SoundEngine.toggleMute();
-      syncWidget();
+      syncAudioUI();
     }
   });
 
