@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mockup A — Codex Corners</title>
+<link href="https://fonts.googleapis.com/css2?family=MedievalSharp&family=Cinzel:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --gold:#FFD700; --gold-dim:#B8860B; --bronze:#8B6914;
+  --parchment:#f2e0b5; --parchment-dim:#c4a878;
+  --ink:#1a0e00; --ink-alpha:rgba(14,8,4,.55);
+  --glass:rgba(20,12,6,.42);
+  --glass-strong:rgba(20,12,6,.72);
+  --glass-border:rgba(220,180,90,.42);
+  --glow:0 0 18px rgba(255,215,0,.45);
+  --font:'MedievalSharp',serif;
+  --font-ui:'Cinzel',serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;font-family:var(--font);color:var(--parchment);-webkit-font-smoothing:antialiased}
+body{
+  background:#000 url('../screenshots/ux-audit/desktop-board-clean.png') center/cover no-repeat;
+  position:relative;
+}
+body.mobile{background-image:url('../screenshots/ux-audit/mobile-board-clean.png')}
+.vignette{position:fixed;inset:0;background:radial-gradient(ellipse at center,transparent 45%,rgba(0,0,0,.55) 100%);pointer-events:none;z-index:1}
+
+/* ============ LOBBY ============ */
+.lobby{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;z-index:10;gap:22px;background:radial-gradient(ellipse at center,rgba(0,0,0,.35) 0%,rgba(0,0,0,.75) 80%)}
+body.show-lobby .lobby{display:flex}
+body.show-lobby .hud{display:none!important}
+
+.triforce{width:120px;height:110px;position:relative;filter:drop-shadow(0 0 28px rgba(255,215,0,.55))}
+.triforce::before,.triforce::after,.triforce>div{position:absolute;width:0;height:0;border-left:30px solid transparent;border-right:30px solid transparent;border-bottom:52px solid var(--gold);filter:drop-shadow(0 0 8px rgba(255,215,0,.7))}
+.triforce::before{left:30px;top:0;content:""}
+.triforce::after{left:0;top:52px;content:""}
+.triforce>div{left:60px;top:52px}
+
+.title{font-family:var(--font);font-size:84px;color:var(--gold);letter-spacing:6px;text-shadow:0 0 28px rgba(255,215,0,.7),0 4px 0 #5a3a00,0 6px 20px rgba(0,0,0,.8);line-height:1}
+.subtitle{font-family:var(--font-ui);font-size:16px;letter-spacing:8px;color:var(--parchment-dim);text-transform:uppercase;margin-top:2px}
+.modes{display:flex;gap:14px;margin-top:38px;flex-wrap:wrap;justify-content:center;max-width:720px}
+.mode-card{width:200px;padding:22px 18px 20px;background:linear-gradient(180deg,rgba(30,18,6,.92),rgba(10,6,2,.92));border:1.5px solid var(--glass-border);border-radius:14px;cursor:pointer;text-align:center;box-shadow:0 10px 28px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,215,0,.12)}
+.mode-card.primary{border-color:var(--gold);box-shadow:var(--glow),0 10px 28px rgba(0,0,0,.6)}
+.mode-icon{font-size:38px;color:var(--gold);margin-bottom:8px}
+.mode-name{font-family:var(--font);font-size:22px;color:var(--parchment);letter-spacing:1px}
+.mode-sub{font-family:var(--font-ui);font-size:11px;letter-spacing:2px;color:var(--parchment-dim);text-transform:uppercase;margin-top:4px}
+
+body.mobile .title{font-size:52px;letter-spacing:3px}
+body.mobile .subtitle{font-size:12px;letter-spacing:5px}
+body.mobile .triforce{width:90px;height:82px}
+body.mobile .triforce::before,body.mobile .triforce::after,body.mobile .triforce>div{border-left-width:22px;border-right-width:22px;border-bottom-width:38px}
+body.mobile .triforce::before{left:22px}
+body.mobile .triforce::after{top:38px}
+body.mobile .triforce>div{left:44px;top:38px}
+body.mobile .modes{flex-direction:column;gap:10px;margin-top:28px;width:88%;max-width:340px}
+body.mobile .mode-card{width:100%;padding:16px 18px}
+
+/* ============ IN-GAME HUD ============ */
+.hud{position:fixed;inset:0;pointer-events:none;z-index:5}
+.hud > *{pointer-events:auto}
+
+/* Player corners */
+.player{position:fixed;top:18px;display:flex;align-items:center;gap:12px;padding:10px 16px 10px 12px;background:var(--glass);backdrop-filter:blur(10px) saturate(1.15);-webkit-backdrop-filter:blur(10px) saturate(1.15);border:1px solid var(--glass-border);border-radius:999px;box-shadow:0 6px 20px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,215,0,.1);z-index:6}
+.player.left{left:18px}
+.player.right{right:18px;flex-direction:row-reverse}
+.player.active{border-color:var(--gold);box-shadow:var(--glow),0 6px 20px rgba(0,0,0,.6);animation:pulse 2.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 18px rgba(255,215,0,.45),0 6px 20px rgba(0,0,0,.6)}50%{box-shadow:0 0 28px rgba(255,215,0,.7),0 6px 20px rgba(0,0,0,.6)}}
+.avatar{width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#FFD700,#8B6914 70%,#3a2000);display:flex;align-items:center;justify-content:center;font-family:var(--font);font-size:22px;color:#1a0e00;border:2px solid var(--gold);text-shadow:0 1px 0 rgba(255,255,255,.3);flex-shrink:0}
+.player.right .avatar{background:radial-gradient(circle at 35% 30%,#a23232,#5a0000 70%,#200)}
+.player.right .avatar{color:#f2e0b5}
+.player .info{display:flex;flex-direction:column;line-height:1.1;min-width:0}
+.player .name{font-family:var(--font);font-size:18px;color:var(--gold);white-space:nowrap}
+.player .caps{font-family:var(--font-ui);font-size:13px;letter-spacing:.5px;color:var(--parchment);opacity:.95;margin-top:2px}
+.player .caps .sym{color:#fff;font-size:14px}
+
+/* Turn arrow cue (floats above active player) */
+.turn-arrow{position:fixed;top:70px;font-size:28px;color:var(--gold);filter:drop-shadow(0 0 8px rgba(255,215,0,.8));animation:bob 1.5s ease-in-out infinite;z-index:7;pointer-events:none}
+.turn-arrow.left{left:54px}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(6px)}}
+
+/* Bottom action dock */
+.bottom-dock{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);display:flex;gap:12px;z-index:6}
+.btn-round{width:56px;height:56px;border-radius:50%;background:var(--glass-strong);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1.5px solid var(--glass-border);color:var(--gold);font-size:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 8px 22px rgba(0,0,0,.7),inset 0 1px 0 rgba(255,215,0,.15);transition:transform .12s}
+.btn-round:hover{transform:translateY(-2px)}
+.btn-round.primary{background:linear-gradient(180deg,#8B6914,#3a2000);border-color:var(--gold);color:#fff1b4;box-shadow:var(--glow),0 8px 22px rgba(0,0,0,.7)}
+.btn-round .lbl{display:none}
+
+/* Moves drawer (collapsed tab, top-right) */
+.moves-drawer{position:fixed;top:92px;right:18px;width:220px;background:var(--glass);backdrop-filter:blur(10px) saturate(1.1);-webkit-backdrop-filter:blur(10px);border:1px solid var(--glass-border);border-radius:12px;padding:10px 14px;z-index:6;box-shadow:0 6px 18px rgba(0,0,0,.55)}
+.moves-drawer .head{display:flex;justify-content:space-between;align-items:center;font-family:var(--font);color:var(--gold);font-size:14px;letter-spacing:1px}
+.moves-drawer .head .count{font-family:var(--font-ui);font-size:11px;color:var(--parchment-dim);letter-spacing:1.5px}
+.moves-drawer .list{margin-top:8px;max-height:160px;overflow:hidden;font-family:var(--font-ui);font-size:12px;color:var(--parchment);opacity:.92;line-height:1.6}
+.moves-drawer .list .mv{display:flex;gap:6px;padding:2px 0;border-top:1px dashed rgba(220,180,90,.15)}
+.moves-drawer .list .mv:first-child{border-top:none}
+.moves-drawer .list .mv .n{color:var(--gold-dim);width:22px;text-align:right}
+
+/* Mobile adjustments */
+body.mobile .player{top:calc(env(safe-area-inset-top,0px) + 10px);padding:6px 12px 6px 6px;gap:8px}
+body.mobile .player.left{left:10px}
+body.mobile .player.right{right:10px}
+body.mobile .avatar{width:38px;height:38px;font-size:18px}
+body.mobile .player .name{font-size:15px}
+body.mobile .player .caps{font-size:11px}
+body.mobile .turn-arrow{top:58px;font-size:22px}
+body.mobile .turn-arrow.left{left:38px}
+body.mobile .bottom-dock{bottom:calc(env(safe-area-inset-bottom,0px) + 14px);gap:10px}
+body.mobile .btn-round{width:50px;height:50px;font-size:20px}
+body.mobile .moves-drawer{position:fixed;top:auto;right:0;left:0;bottom:0;width:100%;border-radius:18px 18px 0 0;padding:10px 18px 16px;max-height:40vh;transform:translateY(calc(100% - 42px));transition:transform .25s}
+body.mobile .moves-drawer.open{transform:translateY(0)}
+body.mobile .moves-drawer .head{justify-content:center;position:relative}
+body.mobile .moves-drawer .head::before{content:"";position:absolute;top:-2px;left:50%;transform:translateX(-50%);width:40px;height:3px;background:var(--gold-dim);border-radius:2px}
+body.mobile .moves-drawer .list{max-height:30vh}
+
+/* Concept label badge (so viewer knows which mockup) */
+.concept-badge{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);font-family:var(--font);color:rgba(255,215,0,.10);font-size:180px;letter-spacing:30px;pointer-events:none;z-index:0;user-select:none}
+body.mobile .concept-badge{font-size:100px;letter-spacing:18px}
+</style>
+</head>
+<body>
+<div class="vignette"></div>
+<div class="concept-badge">A</div>
+
+<!-- LOBBY -->
+<div class="lobby">
+  <div class="triforce"><div></div></div>
+  <h1 class="title">HYRULE CHESS</h1>
+  <div class="subtitle">The Battle for the Triforce</div>
+  <div class="modes">
+    <div class="mode-card primary">
+      <div class="mode-icon">⚔</div>
+      <div class="mode-name">Quick Duel</div>
+      <div class="mode-sub">Local hot-seat</div>
+    </div>
+    <div class="mode-card">
+      <div class="mode-icon">🜲</div>
+      <div class="mode-name">Face Ganon</div>
+      <div class="mode-sub">Vs CPU</div>
+    </div>
+    <div class="mode-card">
+      <div class="mode-icon">✦</div>
+      <div class="mode-name">Play Online</div>
+      <div class="mode-sub">Challenge a friend</div>
+    </div>
+  </div>
+</div>
+
+<!-- IN-GAME HUD -->
+<div class="hud">
+  <div class="player left active">
+    <div class="avatar">⚔</div>
+    <div class="info">
+      <div class="name">Hyrule</div>
+      <div class="caps"><span class="sym">♟♟♟ ♝</span></div>
+    </div>
+  </div>
+  <div class="turn-arrow left">▾</div>
+  <div class="player right">
+    <div class="avatar">☠</div>
+    <div class="info">
+      <div class="name">Ganon</div>
+      <div class="caps"><span class="sym">♟♟ ♞</span></div>
+    </div>
+  </div>
+
+  <div class="moves-drawer">
+    <div class="head"><span>Chronicle</span><span class="count">Move 12</span></div>
+    <div class="list">
+      <div class="mv"><span class="n">10.</span><span>c3 Bb6</span></div>
+      <div class="mv"><span class="n">11.</span><span>Qb3 Nd4</span></div>
+      <div class="mv"><span class="n">12.</span><span>Bxf7+ Kh8</span></div>
+    </div>
+  </div>
+
+  <div class="bottom-dock">
+    <button class="btn-round" title="Chronicle">☰</button>
+    <button class="btn-round primary" title="Menu">◆</button>
+    <button class="btn-round" title="Resign">⚑</button>
+  </div>
+</div>
+
+<script>
+// Query params: ?screen=lobby|game&view=mobile|desktop
+const p = new URLSearchParams(location.search);
+if (p.get('screen') === 'lobby') document.body.classList.add('show-lobby');
+if (p.get('view') === 'mobile') document.body.classList.add('mobile');
+</script>
+</body>
+</html>
