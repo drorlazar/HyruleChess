@@ -2057,16 +2057,16 @@ canvas { display: block; }
       <span class="lbl">Mode</span>
       <select data-se="tm.mode">
         <option value="NoToneMapping">None</option>
-        <option value="LinearToneMapping" selected>Linear</option>
+        <option value="LinearToneMapping">Linear</option>
         <option value="ReinhardToneMapping">Reinhard</option>
         <option value="CineonToneMapping">Cineon</option>
-        <option value="ACESFilmicToneMapping">ACES Filmic</option>
+        <option value="ACESFilmicToneMapping" selected>ACES Filmic</option>
       </select>
     </label>
     <label class="row">
       <span class="lbl">Exposure</span>
-      <input type="range" data-se="tm.exposure" min="0" max="3" step="0.01" value="1.30">
-      <span class="val">1.30</span>
+      <input type="range" data-se="tm.exposure" min="0" max="3" step="0.01" value="1.01">
+      <span class="val">1.01</span>
     </label>
   </details>
 
@@ -2074,12 +2074,12 @@ canvas { display: block; }
     <summary>Fog</summary>
     <label class="row">
       <span class="lbl">Density</span>
-      <input type="range" data-se="fog.density" min="0" max="0.2" step="0.001" value="0.018">
-      <span class="val">0.018</span>
+      <input type="range" data-se="fog.density" min="0" max="0.2" step="0.001" value="0.054">
+      <span class="val">0.054</span>
     </label>
     <label class="row">
       <span class="lbl">Color</span>
-      <input type="color" data-se="fog.color" value="#0a000a">
+      <input type="color" data-se="fog.color" value="#050003">
     </label>
   </details>
 
@@ -2182,8 +2182,8 @@ canvas { display: block; }
     <summary>Cold Rim</summary>
     <label class="row">
       <span class="lbl">Intensity</span>
-      <input type="range" data-se="rimCold.intensity" min="0" max="6" step="0.05" value="0.45">
-      <span class="val">0.45</span>
+      <input type="range" data-se="rimCold.intensity" min="0" max="6" step="0.05" value="0.40">
+      <span class="val">0.40</span>
     </label>
     <label class="row">
       <span class="lbl">Color</span>
@@ -2210,8 +2210,8 @@ canvas { display: block; }
     <summary>Hot Rim</summary>
     <label class="row">
       <span class="lbl">Intensity</span>
-      <input type="range" data-se="rimHot.intensity" min="0" max="6" step="0.05" value="0.80">
-      <span class="val">0.80</span>
+      <input type="range" data-se="rimHot.intensity" min="0" max="6" step="0.05" value="0.65">
+      <span class="val">0.65</span>
     </label>
     <label class="row">
       <span class="lbl">Color</span>
@@ -2238,12 +2238,12 @@ canvas { display: block; }
     <summary>Board Glow</summary>
     <label class="row">
       <span class="lbl">Intensity</span>
-      <input type="range" data-se="boardGlow.intensity" min="0" max="3" step="0.02" value="0.48">
-      <span class="val">0.48</span>
+      <input type="range" data-se="boardGlow.intensity" min="0" max="3" step="0.02" value="1.02">
+      <span class="val">1.02</span>
     </label>
     <label class="row">
       <span class="lbl">Color</span>
-      <input type="color" data-se="boardGlow.color" value="#FFD270">
+      <input type="color" data-se="boardGlow.color" value="#61d0ff">
     </label>
   </details>
 
@@ -2256,18 +2256,18 @@ canvas { display: block; }
     </label>
     <label class="row">
       <span class="lbl">Strength</span>
-      <input type="range" data-se="bloom.strength" min="0" max="3" step="0.01" value="0.29">
-      <span class="val">0.29</span>
+      <input type="range" data-se="bloom.strength" min="0" max="3" step="0.01" value="0.20">
+      <span class="val">0.20</span>
     </label>
     <label class="row">
       <span class="lbl">Radius</span>
-      <input type="range" data-se="bloom.radius" min="0" max="2" step="0.01" value="1.38">
-      <span class="val">1.38</span>
+      <input type="range" data-se="bloom.radius" min="0" max="2" step="0.01" value="0.35">
+      <span class="val">0.35</span>
     </label>
     <label class="row">
       <span class="lbl">Threshold</span>
-      <input type="range" data-se="bloom.threshold" min="0" max="1" step="0.01" value="0.15">
-      <span class="val">0.15</span>
+      <input type="range" data-se="bloom.threshold" min="0" max="1" step="0.01" value="0.14">
+      <span class="val">0.14</span>
     </label>
   </details>
 
@@ -3790,8 +3790,9 @@ function initThree() {
   const bgTexture = new THREE.CanvasTexture(bgCanvas);
   scene.background = bgTexture;
 
-  // Very light warm-purple fog — just enough for depth, lets distant detail breathe
-  scene.fog = new THREE.FogExp2(0x0a000a, 0.018);
+  // Deep-purple haze — pushed denser to soften the far rows and
+  // drop the contrast on background pieces under ACES tone mapping.
+  scene.fog = new THREE.FogExp2(0x050003, 0.054);
 
   // Camera
   camera = new THREE.PerspectiveCamera(
@@ -3808,8 +3809,8 @@ function initThree() {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputEncoding = THREE.sRGBEncoding;
-  renderer.toneMapping = THREE.LinearToneMapping;
-  renderer.toneMappingExposure = 1.30;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.01;
   document.body.prepend(renderer.domElement);
 
   // IBL env map so metalness/roughness produce visible changes.
@@ -3818,8 +3819,8 @@ function initThree() {
   // through PMREMGenerator into a prefiltered cubemap. Brightness is
   // deliberately HIGH (mid-grey warm tones rather than the dark scene
   // background) so a fully-metallic piece clearly catches the reflection
-  // under the existing LinearToneMapping + exposure 1.30. envMapIntensity
-  // defaults to 1 and can be tuned per material from the Material Editor.
+  // under the current ACESFilmic tone mapping. envMapIntensity defaults
+  // to 1 and can be tuned per material from the Material Editor.
   (() => {
     const c = document.createElement('canvas');
     c.width = 512; c.height = 256;
@@ -3896,17 +3897,18 @@ function initThree() {
   scene.add(fillSpot.target);
 
   // Cold blue rim from behind/left
-  const rimCold = new THREE.PointLight(0x3A5CBF, 0.45, 24);
+  const rimCold = new THREE.PointLight(0x3A5CBF, 0.40, 24);
   rimCold.position.set(-3.3, 5.1, -9.5);
   scene.add(rimCold);
 
   // Crimson rim from behind/right — ember light hinting at conflict
-  const rimHot = new THREE.PointLight(0xC0301A, 0.80, 22);
+  const rimHot = new THREE.PointLight(0xC0301A, 0.65, 22);
   rimHot.position.set(5.3, 5.0, -7);
   scene.add(rimHot);
 
-  // Warm golden board glow — ties the gold inlays together
-  const boardGlow = new THREE.PointLight(0xFFD270, 0.48, 10);
+  // Cool blue under-board glow — reads as a magical aura rising from
+  // the board itself, contrasting the warm spotlights above.
+  const boardGlow = new THREE.PointLight(0x61d0ff, 1.02, 10);
   boardGlow.position.set(0, 2.2, 0);
   scene.add(boardGlow);
 
@@ -3918,9 +3920,9 @@ function initThree() {
   composer.addPass(renderPass);
   const bloomPass = new THREE.UnrealBloomPass(
     new THREE.Vector2(window.innerWidth, window.innerHeight),
-    0.29, // strength
-    1.38, // radius
-    0.15  // threshold
+    0.20, // strength
+    0.35, // radius
+    0.14  // threshold
   );
   composer.addPass(bloomPass);
 
@@ -6437,10 +6439,10 @@ const SCENE_EDITOR_KEY = 'hyruleChess.sceneEditor.v1';
 // Default values — must mirror the initial values in initThree() and
 // the HTML default values in the editor panel.
 const SCENE_DEFAULTS = {
-  'tm.mode': 'LinearToneMapping',
-  'tm.exposure': 1.30,
-  'fog.density': 0.018,
-  'fog.color': '#0a000a',
+  'tm.mode': 'ACESFilmicToneMapping',
+  'tm.exposure': 1.01,
+  'fog.density': 0.054,
+  'fog.color': '#050003',
   'bg.inner': '#040101',
   'bg.mid': '#050003',
   'bg.outer': '#070000',
@@ -6458,18 +6460,18 @@ const SCENE_DEFAULTS = {
   'fillSpot.angleDeg': 30,
   'fillSpot.y': 4.8,
   'fillSpot.z': 11,
-  'rimCold.intensity': 0.45,
+  'rimCold.intensity': 0.40,
   'rimCold.color': '#3A5CBF',
   'rimCold.x': -3.3, 'rimCold.y': 5.1, 'rimCold.z': -9.5,
-  'rimHot.intensity': 0.80,
+  'rimHot.intensity': 0.65,
   'rimHot.color': '#C0301A',
   'rimHot.x': 5.3, 'rimHot.y': 5.0, 'rimHot.z': -7,
-  'boardGlow.intensity': 0.48,
-  'boardGlow.color': '#FFD270',
+  'boardGlow.intensity': 1.02,
+  'boardGlow.color': '#61d0ff',
   'bloom.enabled': 1,
-  'bloom.strength': 0.29,
-  'bloom.radius': 1.38,
-  'bloom.threshold': 0.15,
+  'bloom.strength': 0.20,
+  'bloom.radius': 0.35,
+  'bloom.threshold': 0.14,
 };
 
 function loadSavedSceneConfig() {
