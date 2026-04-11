@@ -515,6 +515,296 @@ canvas { display: block; }
 }
 
 /* ============================================================
+   MATERIAL EDITOR — live piece material tuning (sibling panel)
+   ============================================================ */
+#materialEditor {
+  position: fixed;
+  top: 56px;
+  left: 12px;
+  width: 320px;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  background: rgba(12, 8, 14, 0.92);
+  border: 1px solid rgba(220, 180, 90, 0.55);
+  border-radius: 10px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 220, 140, 0.15);
+  backdrop-filter: blur(6px);
+  color: #E8D8A8;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-size: 12px;
+  z-index: 200;
+  display: none;
+  padding: 10px 12px 12px 12px;
+}
+#materialEditor.open { display: block; }
+#materialEditor h2 {
+  font-family: 'MedievalSharp', cursive;
+  color: #F0C24A;
+  font-size: 16px;
+  margin-bottom: 6px;
+  letter-spacing: 0.5px;
+}
+#materialEditor .hint {
+  color: #A89870;
+  font-size: 10px;
+  margin-bottom: 8px;
+}
+#materialEditor .selected-mat {
+  background: rgba(240, 194, 74, 0.08);
+  border: 1px solid rgba(240, 194, 74, 0.25);
+  border-radius: 4px;
+  padding: 6px 8px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: #C8B888;
+}
+#materialEditor .selected-mat .title { color: #F0C24A; font-weight: 600; font-size: 12px; }
+#materialEditor .selected-mat .path { color: #A07840; font-size: 10px; margin-top: 2px; word-break: break-all; }
+#materialEditor .selected-mat.empty { color: #6a5a3a; text-align: center; font-style: italic; }
+#materialEditor details {
+  border-top: 1px solid rgba(220, 180, 90, 0.18);
+  padding: 6px 0 4px 0;
+}
+#materialEditor details:first-of-type { border-top: none; }
+#materialEditor summary {
+  cursor: pointer;
+  color: #F0C24A;
+  font-weight: 600;
+  padding: 4px 2px;
+  user-select: none;
+  outline: none;
+}
+#materialEditor summary::-webkit-details-marker { color: #A07840; }
+#materialEditor label.row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0;
+}
+#materialEditor label.row .lbl {
+  flex: 0 0 78px;
+  color: #C8B888;
+  font-size: 11px;
+}
+#materialEditor label.row input[type="range"] {
+  flex: 1 1 auto;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: linear-gradient(to right, #3A2A0A, #705020);
+  border-radius: 2px;
+  outline: none;
+}
+#materialEditor label.row input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: #F0C24A;
+  border: 1px solid #2A1A05;
+  box-shadow: 0 0 4px rgba(240, 194, 74, 0.6);
+  cursor: pointer;
+}
+#materialEditor label.row input[type="color"] {
+  flex: 0 0 32px;
+  height: 18px;
+  border: 1px solid #4A3820;
+  border-radius: 3px;
+  background: #000;
+  padding: 0;
+  cursor: pointer;
+}
+#materialEditor label.row select {
+  flex: 1 1 auto;
+  background: #1A1208;
+  color: #E8D8A8;
+  border: 1px solid #4A3820;
+  border-radius: 3px;
+  padding: 2px 4px;
+  font-size: 11px;
+}
+#materialEditor label.row input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  accent-color: #F0C24A;
+  cursor: pointer;
+}
+#materialEditor label.row .val {
+  flex: 0 0 42px;
+  text-align: right;
+  color: #E0B058;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+}
+#materialEditor label.row.disabled { opacity: 0.35; pointer-events: none; }
+#materialEditor label.row.hidden { display: none; }
+
+/* Texture grid — one row per populated texture slot with a tiny
+   thumbnail + enable checkbox. Unpopulated slots hide themselves
+   (see updateControlsFromSelection). */
+#materialEditor .texture-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 4px 0;
+}
+#materialEditor .tex-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 2px;
+}
+#materialEditor .tex-row.hidden { display: none; }
+#materialEditor .tex-row .thumb {
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  background: #000;
+  border: 1px solid #4A3820;
+  border-radius: 3px;
+  image-rendering: pixelated;
+}
+#materialEditor .tex-row .tex-meta {
+  flex: 1 1 auto;
+  font-size: 10px;
+  color: #C8B888;
+  line-height: 1.3;
+}
+#materialEditor .tex-row .tex-meta .slot {
+  color: #F0C24A;
+  font-weight: 600;
+  display: block;
+}
+#materialEditor .tex-row .tex-meta .dims {
+  color: #8a7a5a;
+  font-size: 9px;
+}
+#materialEditor .tex-row .tex-slider-wrap {
+  flex: 1 1 110px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 110px;
+}
+#materialEditor .tex-row .tex-slider-wrap input[type="range"] {
+  flex: 1 1 auto;
+  min-width: 60px;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: linear-gradient(to right, #3A2A0A, #705020);
+  border-radius: 2px;
+  outline: none;
+}
+#materialEditor .tex-row .tex-slider-wrap input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: #F0C24A;
+  border: 1px solid #2A1A05;
+  box-shadow: 0 0 4px rgba(240, 194, 74, 0.6);
+  cursor: pointer;
+}
+#materialEditor .tex-row .tex-slider-wrap .tex-val {
+  flex: 0 0 36px;
+  text-align: right;
+  color: #E0B058;
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+}
+#materialEditor .tex-row.empty {
+  color: #6a5a3a;
+  font-style: italic;
+  font-size: 10px;
+  padding: 6px 2px;
+  justify-content: center;
+}
+#materialEditor .toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(220, 180, 90, 0.25);
+}
+#materialEditor .toolbar button {
+  flex: 1 1 45%;
+  background: linear-gradient(#3A2A0A, #1F1405);
+  border: 1px solid #6A4A1A;
+  color: #F0C24A;
+  font-family: inherit;
+  font-size: 11px;
+  padding: 6px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+#materialEditor .toolbar button:hover {
+  background: linear-gradient(#523A10, #2A1805);
+  color: #FFE18A;
+  box-shadow: 0 0 6px rgba(240, 194, 74, 0.4);
+}
+#materialEditor .toast {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  background: rgba(240, 194, 74, 0.92);
+  color: #1A0E00;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+#materialEditor .toast.show { opacity: 1; }
+#materialEditor .env-hint {
+  margin-top: 8px;
+  padding: 4px 6px;
+  font-size: 10px;
+  color: #8a6a3a;
+  font-style: italic;
+  line-height: 1.3;
+}
+
+/* Material Editor toggle button is intentionally hidden — the button
+   was interfering with the HUD/rail layout. The editor is still fully
+   functional and opens via the U key on desktop. To re-enable the
+   button, remove `display: none` below. */
+#materialEditorToggle {
+  display: none;
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 201;
+  background: rgba(12, 8, 14, 0.85);
+  border: 1px solid rgba(220, 180, 90, 0.55);
+  color: #F0C24A;
+  font-family: 'MedievalSharp', cursive;
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  user-select: none;
+}
+#materialEditorToggle:hover {
+  background: rgba(30, 18, 8, 0.95);
+  box-shadow: 0 0 8px rgba(240, 194, 74, 0.5);
+}
+#materialEditorToggle.picking {
+  background: rgba(240, 194, 74, 0.95);
+  color: #1A0E00;
+  box-shadow: 0 0 16px rgba(240, 194, 74, 0.7);
+  border-color: #FFE18A;
+}
+
+/* ============================================================
    ============   UI v2  —  HYRULE CHESS REDESIGN   ===========
    Mix of mockup A (lobby + visual language) + C (desktop game
    side rails) + B (mobile game top/bottom bars).
@@ -999,7 +1289,11 @@ canvas { display: block; }
   border: 1px solid var(--u2-glass-border);
   color: var(--u2-gold);
   cursor: pointer;
-  font-size: 14px;
+  /* Bumped from 14px — the old ⃠ overlay rendered at 18px so the muted
+     state always looked bigger than the unmuted gold note. Now that the
+     muted state just recolors the ♫ glyph, use 18px here so the note
+     doesn't look undersized compared to what users were used to. */
+  font-size: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1008,16 +1302,27 @@ canvas { display: block; }
   transition: all .12s;
 }
 #hud.u2 .rail-audio .rail-mute-btn:hover { border-color: var(--u2-gold); box-shadow: 0 0 10px rgba(255,215,0,.45); }
-#hud.u2 .rail-audio .rail-mute-btn .ico-off {
-  position: absolute; inset: 0;
-  display: none;
-  align-items: center; justify-content: center;
-  font-size: 18px;
-  color: #ff9090;
+/* Legacy .ico-off glyph is no longer used — the muted state is now
+   shown as a gray note + gray diagonal line via the ::after rule below. */
+#hud.u2 .rail-audio .rail-mute-btn .ico-off { display: none !important; }
+#hud.u2 .rail-audio.muted .rail-mute-btn {
+  color: #888;
+  border-color: #555;
+  background: rgba(60,60,60,.3);
+  box-shadow: none;
 }
-#hud.u2 .rail-audio.muted .rail-mute-btn { color: #ff9090; border-color: #c44040; }
-#hud.u2 .rail-audio.muted .rail-mute-btn .ico-on { opacity: .35; }
-#hud.u2 .rail-audio.muted .rail-mute-btn .ico-off { display: flex; }
+#hud.u2 .rail-audio.muted .rail-mute-btn .ico-on { opacity: 1; color: #888; }
+/* Gray diagonal line cutting across the button when muted. The
+   linear-gradient renders a thin solid band at 45° (top-right → bottom-left),
+   the classic "no" slash. */
+#hud.u2 .rail-audio.muted .rail-mute-btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(135deg, transparent 46%, #888 46%, #888 54%, transparent 54%);
+  pointer-events: none;
+}
 #hud.u2 .rail-audio .rail-vol-slider {
   flex: 1;
   -webkit-appearance: none;
@@ -1278,20 +1583,10 @@ canvas { display: block; }
 }
 
 @media (max-width: 900px) {
-  /* On mobile, the top bar already fills top-right with the Ganon slab.
-     Put the audio widget at bottom-left, floating just above the bottom bar
-     where nothing else lives. */
-  #audioWidget.u2 {
-    top: auto;
-    right: auto;
-    left: 8px;
-    bottom: calc(var(--u2-mobile-bot) + env(safe-area-inset-bottom, 0px) + 8px);
-    padding: 4px 10px 4px 4px;
-    transform: scale(.85);
-    transform-origin: bottom left;
-    z-index: 110;
-  }
-  #audioWidget.u2 .u2-vol-slider { width: 72px; }
+  /* On mobile the floating audio widget is replaced by an mbtn-mute
+     inside the bottom action bar (see btnMobileMute). Hide the
+     standalone widget completely so nothing floats over the board. */
+  #audioWidget.u2 { display: none !important; }
 }
 
 /* ============================================================
@@ -1448,6 +1743,42 @@ canvas { display: block; }
   #hud.u2 .mbotbar .mbtn.danger { color: #ff9090; }
   #hud.u2 .mbotbar .mbtn.danger:hover { background: rgba(140,20,30,.45); border-color: #c44040; }
   #hud.u2 .mbotbar .mbtn.hidden { display: none; }
+
+  /* Mute button in the mobile bottom bar. Shows the ♫ note; when
+     muted, the note goes gray and a gray diagonal line is drawn
+     across the button via ::after. Replaces the floating #audioWidget
+     on mobile. Font bumped from 18px → 22px: the old .ico-off overlay
+     rendered at 22px and the user was used to that size — the new
+     in-place recolor needs to match so the note doesn't look shrunken. */
+  #hud.u2 .mbotbar .mbtn-mute {
+    position: relative;
+    color: var(--u2-gold);
+    font-size: 22px;
+  }
+  #hud.u2 .mbotbar .mbtn-mute .ico-on {
+    position: absolute;
+    inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    line-height: 1;
+  }
+  /* Legacy .ico-off glyph is no longer used — the muted state is the
+     gray note + ::after diagonal line. */
+  #hud.u2 .mbotbar .mbtn-mute .ico-off { display: none !important; }
+  #hud.u2 .mbotbar .mbtn-mute.muted {
+    color: #888;
+    border-color: #555;
+    background: rgba(60,60,60,.3);
+  }
+  #hud.u2 .mbotbar .mbtn-mute.muted .ico-on { color: #888; opacity: 1; }
+  /* Diagonal gray line across the button when muted. */
+  #hud.u2 .mbotbar .mbtn-mute.muted::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(135deg, transparent 46%, #888 46%, #888 54%, transparent 54%);
+    pointer-events: none;
+  }
   #hud.u2 .mbotbar .last-move-ticker {
     flex: 1; height: 38px; min-width: 0;
     display: flex; align-items: center; gap: 8px;
@@ -1664,6 +1995,10 @@ canvas { display: block; }
 
   <!-- Mobile: bottom bar (actions + ticker) -->
   <div class="mbotbar">
+    <button class="mbtn mbtn-mute" id="btnMobileMute" title="Mute / Unmute" aria-label="Mute toggle">
+      <span class="ico-on">♫</span>
+      <span class="ico-off">⃠</span>
+    </button>
     <button class="mbtn" data-mirror="btnMenu" title="Menu">☰</button>
     <button class="mbtn" id="btnChronicleOpen" title="Chronicle">📜</button>
     <div class="last-move-ticker" id="lastMoveTicker">
@@ -1940,6 +2275,115 @@ canvas { display: block; }
     <button id="seCopyBtn" title="Copy settings as JavaScript">Copy as JS</button>
     <button id="seResetBtn" title="Reset to defaults">Reset</button>
   </div>
+</div>
+
+<!-- Material Editor (toggle with U) -->
+<button id="materialEditorToggle" class="u2" title="Toggle Material Editor (U)">✦ Materials</button>
+<div id="materialEditor">
+  <h2>Material Editor</h2>
+  <div class="hint">Press <b>U</b> to toggle. Click a piece mesh to pick its material, then tweak. Changes auto-save per model version.</div>
+  <div class="toast" id="meToast">Copied!</div>
+
+  <div class="selected-mat empty">Click any piece mesh to pick a material</div>
+
+  <details open>
+    <summary>Albedo</summary>
+    <label class="row" data-me-control>
+      <span class="lbl">Color</span>
+      <input type="color" data-me="color" value="#ffffff">
+    </label>
+  </details>
+
+  <details open>
+    <summary>Surface</summary>
+    <label class="row" data-me-control>
+      <span class="lbl">Metalness</span>
+      <input type="range" data-me="metalness" min="0" max="1" step="0.01" value="0">
+      <span class="val">0.00</span>
+    </label>
+    <label class="row" data-me-control>
+      <span class="lbl">Roughness</span>
+      <input type="range" data-me="roughness" min="0" max="1" step="0.01" value="1">
+      <span class="val">1.00</span>
+    </label>
+    <label class="row" data-me-control>
+      <span class="lbl">Env intensity</span>
+      <input type="range" data-me="envMapIntensity" min="0" max="3" step="0.01" value="1">
+      <span class="val">1.00</span>
+    </label>
+    <label class="row" data-me-control>
+      <span class="lbl">Flat shade</span>
+      <input type="checkbox" data-me="flatShading">
+    </label>
+  </details>
+
+  <details open>
+    <summary>Emission</summary>
+    <label class="row" data-me-control>
+      <span class="lbl">Color</span>
+      <input type="color" data-me="emissive" value="#000000">
+    </label>
+    <label class="row" data-me-control>
+      <span class="lbl">Intensity</span>
+      <input type="range" data-me="emissiveIntensity" min="0" max="5" step="0.01" value="0">
+      <span class="val">0.00</span>
+    </label>
+  </details>
+
+  <details>
+    <summary>Transparency</summary>
+    <label class="row" data-me-control>
+      <span class="lbl">Opacity</span>
+      <input type="range" data-me="opacity" min="0" max="1" step="0.01" value="1">
+      <span class="val">1.00</span>
+    </label>
+    <label class="row" data-me-control>
+      <span class="lbl">Transparent</span>
+      <input type="checkbox" data-me="transparent">
+    </label>
+    <label class="row" data-me-control data-me-conditional="alphaTest">
+      <span class="lbl">Alpha test</span>
+      <input type="range" data-me="alphaTest" min="0" max="1" step="0.01" value="0">
+      <span class="val">0.00</span>
+    </label>
+  </details>
+
+  <details>
+    <summary>Textures</summary>
+    <div class="texture-grid" id="meTextureGrid"></div>
+  </details>
+
+  <details>
+    <summary>Rendering</summary>
+    <label class="row" data-me-control>
+      <span class="lbl">Side</span>
+      <select data-me="side">
+        <option value="FrontSide">Front</option>
+        <option value="BackSide">Back</option>
+        <option value="DoubleSide">Double</option>
+      </select>
+    </label>
+    <label class="row" data-me-control>
+      <span class="lbl">Wireframe</span>
+      <input type="checkbox" data-me="wireframe">
+    </label>
+    <label class="row" data-me-control>
+      <span class="lbl">Tone mapped</span>
+      <input type="checkbox" data-me="toneMapped">
+    </label>
+    <label class="row" data-me-control>
+      <span class="lbl">Depth write</span>
+      <input type="checkbox" data-me="depthWrite">
+    </label>
+  </details>
+
+  <div class="toolbar">
+    <button id="meResetMatBtn" title="Reset the selected material to its default">Reset mat</button>
+    <button id="meResetPieceBtn" title="Reset every material on the selected piece">Reset piece</button>
+    <button id="meCopyBtn" title="Copy all edits as a JS snippet">Copy JSON</button>
+    <button id="meResetAllBtn" title="Clear the entire material store for this version">Reset all</button>
+  </div>
+  <div class="env-hint">Scene has a subtle PMREM IBL — metalness + env intensity drive the reflective highlight. Crank emissiveIntensity to drive bloom.</div>
 </div>
 
 <!-- Promotion Dialog -->
@@ -3138,19 +3582,19 @@ const MODEL_VERSION = (() => {
 const MODEL_DIR = MODEL_VERSION === 'v2' ? 'assets/models/v2' : 'assets/models';
 const USE_SEPARATE_DISCS = (MODEL_VERSION === 'v2');
 
-// v2 Hyrule disc style. 'royal' (royal blue + gold, low glow) is the new
-// default. 'sheikah' (cyan + triforce, high glow) is kept as a fallback —
-// toggle via URL param ?disc=sheikah or localStorage.
+// v2 Hyrule disc style. 'royal' (royal blue + gold, painted albedo, no
+// emissive wash) is the hard default. 'sheikah' (cyan + triforce, emissive
+// rune glow) is kept as a per-session fallback via URL param ?disc=sheikah.
+// No localStorage persistence — a stale 'sheikah' from earlier testing
+// used to stick around and make localhost look wrong vs production. If any
+// stashed value is still present we clean it up here.
 const HYRULE_DISC_STYLE = (() => {
+  try { localStorage.removeItem('hyruleChess.hyruleDiscStyle'); } catch (e) {}
   try {
     const p = new URLSearchParams(location.search).get('disc');
-    if (p === 'sheikah' || p === 'royal') {
-      localStorage.setItem('hyruleChess.hyruleDiscStyle', p);
-      return p;
-    }
+    if (p === 'sheikah' || p === 'royal') return p;
   } catch (e) {}
-  try { return localStorage.getItem('hyruleChess.hyruleDiscStyle') || 'royal'; }
-  catch (e) { return 'royal'; }
+  return 'royal';
 })();
 
 const ModelLoader = {
@@ -3264,6 +3708,30 @@ const ModelLoader = {
     }
 
     await Promise.all(promises);
+
+    // Material Editor integration: assign deterministic matKeys to every
+    // template material so saved edits can be reapplied on reload. This
+    // happens BEFORE this.loaded = true so the first clone inherits the
+    // edits automatically (deep-cloned material.userData carries matKey
+    // and the applied properties forward).
+    for (const [key, template] of Object.entries(this.models)) {
+      assignMatKeys(template, key);
+    }
+    if (USE_SEPARATE_DISCS) {
+      if (this.discs['w']) assignMatKeys(this.discs['w'], 'disc_w');
+      if (this.discs['b']) assignMatKeys(this.discs['b'], 'disc_b');
+    }
+    if (typeof MaterialStore !== 'undefined') {
+      MaterialStore.load(MODEL_VERSION);
+      for (const template of Object.values(this.models)) {
+        applyMaterialOverridesTo(template, MaterialStore);
+      }
+      if (USE_SEPARATE_DISCS) {
+        if (this.discs['w']) applyMaterialOverridesTo(this.discs['w'], MaterialStore);
+        if (this.discs['b']) applyMaterialOverridesTo(this.discs['b'], MaterialStore);
+      }
+    }
+
     this.loaded = true;
     const loadedCount = Object.keys(this.models).length;
     const discCount = Object.keys(this.discs).length;
@@ -3343,6 +3811,52 @@ function initThree() {
   renderer.toneMapping = THREE.LinearToneMapping;
   renderer.toneMappingExposure = 1.30;
   document.body.prepend(renderer.domElement);
+
+  // IBL env map so metalness/roughness produce visible changes.
+  // The scene has no HDR asset and no skybox, so without scene.environment
+  // metalness is a near-no-op in the editor. We bake a bright warm canvas
+  // through PMREMGenerator into a prefiltered cubemap. Brightness is
+  // deliberately HIGH (mid-grey warm tones rather than the dark scene
+  // background) so a fully-metallic piece clearly catches the reflection
+  // under the existing LinearToneMapping + exposure 1.30. envMapIntensity
+  // defaults to 1 and can be tuned per material from the Material Editor.
+  (() => {
+    const c = document.createElement('canvas');
+    c.width = 512; c.height = 256;
+    const cx = c.getContext('2d');
+    // Warm bright sky fading to a dark floor — midtones-heavy so metal
+    // reflections have real luminance to pick up, not the near-black void.
+    const grd = cx.createLinearGradient(0, 0, 0, 256);
+    grd.addColorStop(0.00, '#d8b878');  // bright warm sky
+    grd.addColorStop(0.30, '#a88858');
+    grd.addColorStop(0.55, '#5a4230');
+    grd.addColorStop(1.00, '#1a1008');  // warm floor, not pure black
+    cx.fillStyle = grd;
+    cx.fillRect(0, 0, 512, 256);
+    // Cold blue + crimson + bright key highlights echoing the rim lights
+    const blob = (x, y, r, color) => {
+      const g = cx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, color);
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      cx.fillStyle = g;
+      cx.beginPath(); cx.arc(x, y, r, 0, Math.PI * 2); cx.fill();
+    };
+    blob(128, 110, 80, 'rgba(100, 140, 220, 0.75)');  // cool rim
+    blob(384, 118, 80, 'rgba(230, 90, 50, 0.70)');    // warm rim
+    blob(256, 50,  110, 'rgba(255, 240, 200, 0.85)'); // bright warm key
+
+    const equirect = new THREE.CanvasTexture(c);
+    equirect.mapping = THREE.EquirectangularReflectionMapping;
+    equirect.encoding = THREE.sRGBEncoding;
+
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    pmrem.compileEquirectangularShader();
+    const envMap = pmrem.fromEquirectangular(equirect).texture;
+    scene.environment = envMap;
+
+    equirect.dispose();
+    pmrem.dispose();
+  })();
 
   // Controls
   controls = new THREE.OrbitControls(camera, renderer.domElement);
@@ -5204,15 +5718,26 @@ function showValidMoves(moves) {
   }
 }
 
-// Selection ring (golden torus under selected piece)
+// Selection ring — white flat ring under the selected piece that pulses
+// with the same cadence as the red capture rings, so selection reads as
+// "this piece is in motion" using the exact visual language of the rest
+// of the move-marker system. Pulse is driven from the animate() loop.
 function showSelectionRing(row, col) {
   removeSelectionRing();
   const pos = boardToWorld(row, col);
-  const geo = new THREE.TorusGeometry(0.35, 0.04, 8, 24);
-  const mat = new THREE.MeshBasicMaterial({ color: 0xFFD700, transparent: true, opacity: 0.7 });
+  const geo = new THREE.RingGeometry(0.36, 0.46, 32);
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0xFFFFFF,
+    transparent: true,
+    opacity: 0.85,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    depthTest: false,
+  });
   selectionRing = new THREE.Mesh(geo, mat);
   selectionRing.rotation.x = -Math.PI / 2;
-  selectionRing.position.set(pos.x, 0.02, pos.z);
+  selectionRing.position.set(pos.x, 0.05, pos.z);
+  selectionRing.renderOrder = 999;
   selectionRing.userData = { isSelectionRing: true };
   effectsGroup.add(selectionRing);
 }
@@ -5232,11 +5757,19 @@ let lastFairyEmit = 0;
 let prevAnimTime = 0;
 const FAIRY_COLORS = [0xFFE898, 0xFFFFCC, 0xB0E8FF, 0xFFD78C, 0xCFEFFF, 0xFFF5C8];
 
+// Shared tiny sphere geometry for fairy dust — allocating a new
+// SphereGeometry per particle every frame was the old approach and
+// produces visible "blob" circles because we need to keep the radius
+// small enough to read as dust. We use ONE shared unit-radius low-poly
+// sphere and scale it per-particle via mesh.scale, which gives us
+// arbitrarily tiny specks without geometry churn.
+const FAIRY_UNIT_GEO = new THREE.SphereGeometry(1, 4, 3);
+
 function spawnFairyBurst(row, col, count) {
   const pos = boardToWorld(row, col);
   for (let i = 0; i < count; i++) {
-    const size = 0.035 + Math.random() * 0.04;
-    const geo = new THREE.SphereGeometry(size, 6, 6);
+    // Tiny speck — much smaller than the old 0.035–0.075 "blob" range.
+    const size = 0.006 + Math.random() * 0.012;
     const color = FAIRY_COLORS[Math.floor(Math.random() * FAIRY_COLORS.length)];
     const mat = new THREE.MeshBasicMaterial({
       color, transparent: true, opacity: 0.95,
@@ -5244,30 +5777,34 @@ function spawnFairyBurst(row, col, count) {
       depthTest: false,
       blending: THREE.AdditiveBlending,
     });
-    const p = new THREE.Mesh(geo, mat);
+    const p = new THREE.Mesh(FAIRY_UNIT_GEO, mat);
+    p.scale.set(size, size, size);
     p.renderOrder = 998;
 
-    // Initial position: near the piece base, with slight vertical jitter
+    // Initial position: near the piece base, with slight vertical jitter.
+    // Tighter radius than before keeps the swarm close to the piece.
     const angle = Math.random() * Math.PI * 2;
-    const radius = 0.08 + Math.random() * 0.16;
+    const radius = 0.05 + Math.random() * 0.14;
     p.position.set(
       pos.x + Math.cos(angle) * radius,
-      0.15 + Math.random() * 0.55,
+      0.15 + Math.random() * 0.75,
       pos.z + Math.sin(angle) * radius
     );
 
-    // Velocity: outward + upward + jitter (a gentle puff)
-    const speed = 0.35 + Math.random() * 0.55;
-    const life = 0.85 + Math.random() * 0.65;
+    // Gentler puff — slower velocities + longer life so the cloud
+    // lingers and reads as drifting dust rather than a pop of confetti.
+    const speed = 0.22 + Math.random() * 0.40;
+    const life = 1.10 + Math.random() * 0.80;
     p.userData = {
       isFairy: true,
-      vx: Math.cos(angle) * speed * 0.7 + (Math.random() - 0.5) * 0.4,
-      vy: 0.55 + Math.random() * 0.85,
-      vz: Math.sin(angle) * speed * 0.7 + (Math.random() - 0.5) * 0.4,
+      baseSize: size,           // remember so updateFairies can scale from it
+      vx: Math.cos(angle) * speed * 0.6 + (Math.random() - 0.5) * 0.28,
+      vy: 0.35 + Math.random() * 0.55,
+      vz: Math.sin(angle) * speed * 0.6 + (Math.random() - 0.5) * 0.28,
       life: life,
       maxLife: life,
       twinkle: Math.random() * Math.PI * 2,
-      twinkleSpeed: 0.008 + Math.random() * 0.01,
+      twinkleSpeed: 0.009 + Math.random() * 0.014,
     };
 
     effectsGroup.add(p);
@@ -5284,7 +5821,7 @@ function updateFairies(dt, now) {
     u.life -= dt;
     if (u.life <= 0) {
       effectsGroup.remove(p);
-      p.geometry.dispose();
+      // FAIRY_UNIT_GEO is shared — only dispose the per-particle material
       p.material.dispose();
       activeFairies.splice(i, 1);
       continue;
@@ -5293,16 +5830,16 @@ function updateFairies(dt, now) {
     p.position.x += u.vx * dt;
     p.position.y += u.vy * dt;
     p.position.z += u.vz * dt;
-    // Gentle gravity + air drag
-    u.vy -= 1.4 * dt;
-    u.vx *= 0.94;
-    u.vz *= 0.94;
+    // Very light gravity + air drag — dust falls slowly and drifts
+    u.vy -= 0.85 * dt;
+    u.vx *= 0.95;
+    u.vz *= 0.95;
     // Fade + twinkle
     const lifeRatio = u.life / u.maxLife;
-    const twinkle = 0.7 + 0.3 * Math.sin(now * u.twinkleSpeed + u.twinkle);
+    const twinkle = 0.65 + 0.35 * Math.sin(now * u.twinkleSpeed + u.twinkle);
     p.material.opacity = lifeRatio * twinkle;
-    // Slight scale-down toward end
-    const s = 0.7 + lifeRatio * 0.5;
+    // Scale modulates around the per-particle baseSize captured on spawn
+    const s = u.baseSize * (0.7 + lifeRatio * 0.5);
     p.scale.set(s, s, s);
   }
 }
@@ -5310,7 +5847,7 @@ function updateFairies(dt, now) {
 function clearAllFairies() {
   for (const p of activeFairies) {
     effectsGroup.remove(p);
-    p.geometry.dispose();
+    // FAIRY_UNIT_GEO is shared — only dispose the per-particle material
     p.material.dispose();
   }
   activeFairies = [];
@@ -5835,14 +6372,20 @@ function animate() {
     marker.scale.set(mScale, mScale, 1);
   }
 
-  // Fairy dust: emit a small steady stream while a piece is selected,
-  // and update all in-flight particles every frame.
+  // Pulse the white selection ring under the selected piece — same
+  // cadence as the capture rings so they read as part of the same
+  // "this piece is in motion" visual language.
+  if (selectionRing) {
+    const sScale = 0.95 + 0.1 * Math.sin(now * 0.004);
+    selectionRing.scale.set(sScale, sScale, 1);
+    selectionRing.material.opacity = 0.75 + 0.15 * Math.sin(now * 0.003);
+  }
+
+  // (Selected-piece fairy dust emitter removed — the pulsing white
+  // ring above replaced it. spawnFairyBurst / updateFairies remain
+  // available for future effects but are no longer driven per-frame.)
   const dt = Math.min(0.06, prevAnimTime ? (now - prevAnimTime) / 1000 : 0.016);
   prevAnimTime = now;
-  if (gameActive && selectedPiece && now - lastFairyEmit > 90) {
-    lastFairyEmit = now;
-    spawnFairyBurst(selectedPiece.row, selectedPiece.col, 2);
-  }
   if (activeFairies.length > 0) updateFairies(dt, now);
 
   // Idle breathing animation (subtle Y oscillation + rotation oscillation)
@@ -6171,6 +6714,873 @@ function initSceneEditor() {
 }
 
 // ============================================================
+// MATERIAL EDITOR — live piece material tuning
+// ============================================================
+// Sibling of the Scene Editor. Press 'U' to toggle. Click any mesh on
+// a piece (or disc in v2) to pick its material, then drag sliders /
+// pickers to tweak color, metalness, roughness, emissive, opacity.
+//
+// Persistence:
+//   - Primary: localStorage keyed by model version
+//     (hyruleChess.materials.v1 / hyruleChess.materials.v2)
+//   - Baked into templates inside ModelLoader.loadAll() BEFORE first
+//     clone, so all future pieces inherit.
+//   - Live scene walked on every edit so existing placed pieces sync.
+//   - Copy-as-JSON dumps a snippet you can paste into index.html as
+//     window.MATERIAL_OVERRIDES_V1 / V2 for shipping.
+
+const MATERIAL_EDITOR_KEY_PREFIX = 'hyruleChess.materials.';
+
+const MaterialStore = (() => {
+  let state = {};
+  let currentVersion = 'v1';
+  let storageKey = MATERIAL_EDITOR_KEY_PREFIX + 'v1';
+
+  function load(version) {
+    currentVersion = version || 'v1';
+    storageKey = MATERIAL_EDITOR_KEY_PREFIX + currentVersion;
+    try {
+      const raw = localStorage.getItem(storageKey);
+      state = raw ? JSON.parse(raw) : {};
+      if (!state || typeof state !== 'object') state = {};
+    } catch (e) { state = {}; }
+
+    // Merge in any in-source overrides from pasted Copy-as-JSON.
+    // localStorage wins for keys it already has; in-source fills gaps.
+    const sourceKey = 'MATERIAL_OVERRIDES_' + currentVersion.toUpperCase();
+    const sourceOverrides = window[sourceKey];
+    if (sourceOverrides && typeof sourceOverrides === 'object') {
+      for (const [k, v] of Object.entries(sourceOverrides)) {
+        if (!(k in state)) state[k] = Object.assign({}, v);
+      }
+    }
+    return state;
+  }
+
+  function save() {
+    try { localStorage.setItem(storageKey, JSON.stringify(state)); } catch (e) {}
+  }
+
+  function get(matKey) { return state[matKey] || null; }
+  function getAll() { return state; }
+  function getVersion() { return currentVersion; }
+
+  function set(matKey, prop, value) {
+    if (!state[matKey]) state[matKey] = {};
+    state[matKey][prop] = value;
+    save();
+  }
+
+  function clearMat(matKey) { delete state[matKey]; save(); }
+  function clearAll() { state = {}; save(); }
+
+  return { load, save, get, getAll, getVersion, set, clearMat, clearAll };
+})();
+
+// Texture slots we surface in the editor. Tripo3D-generated GLBs in this
+// game carry a full PBR set (map/normalMap/roughnessMap/metalnessMap), the
+// v2 disc has map (+ optional emissiveMap for the sheikah variant), and
+// aoMap occasionally shows up — everything else is absent, so we keep the
+// list tight.
+const TEXTURE_SLOTS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap', 'aoMap'];
+
+// Tiny 1×1 stand-in textures used to "disable" a texture slot without
+// flipping mat[slot] between null and a Texture. Flipping a slot on/off
+// in Three r128 changes the shader's USE_MAP defines, which requires
+// needsUpdate + a recompile; during that recompile uniform refresh can
+// briefly read an undefined uvScaleMap.matrix and crash with:
+//   "Cannot read properties of undefined (reading 'elements')"
+// Using a stand-in texture keeps the slot always-truthy, so the shader
+// never recompiles — toggling becomes a pure uniform swap.
+//
+// - WHITE neutralizes map / roughnessMap / metalnessMap / aoMap / emissiveMap
+//   because each of those multiplies with an accompanying material scalar,
+//   and *1.0 = unchanged (e.g., roughnessMapTexel.g * roughness).
+// - FLAT_NORMAL encodes (0,0,1) in tangent space → no bump for normalMap.
+const ME_WHITE_TEX = (() => {
+  const t = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1, THREE.RGBAFormat);
+  t.needsUpdate = true;
+  return t;
+})();
+const ME_FLAT_NORMAL_TEX = (() => {
+  const t = new THREE.DataTexture(new Uint8Array([128, 128, 255, 255]), 1, 1, THREE.RGBAFormat);
+  t.needsUpdate = true;
+  return t;
+})();
+function disabledStandinFor(slot) {
+  return slot === 'normalMap' ? ME_FLAT_NORMAL_TEX : ME_WHITE_TEX;
+}
+
+// Global texture-backup registry keyed by matKey. We CANNOT store Texture
+// references in material.userData because Three r128's Material.copy()
+// uses `this.userData = JSON.parse(JSON.stringify(source.userData))`,
+// which silently destroys Texture refs during ModelLoader.getModel's
+// deep-clone walk — the clone ends up with a plain JSON object where
+// a Texture should be, missing .matrix/.elements, and the next render
+// crashes in refreshMaterialUniforms. String-keyed lookups survive
+// because matKey is a plain string. Keyed per matKey means template
+// and all live clones share the same backup, which is what we want.
+const ME_TEXTURE_BACKUPS = {}; // { [matKey]: { [slot]: THREE.Texture } }
+
+function sideToString(side) {
+  if (side === THREE.BackSide) return 'BackSide';
+  if (side === THREE.DoubleSide) return 'DoubleSide';
+  return 'FrontSide';
+}
+function stringToSide(s) {
+  if (s === 'BackSide') return THREE.BackSide;
+  if (s === 'DoubleSide') return THREE.DoubleSide;
+  return THREE.FrontSide;
+}
+
+// Snapshot the PBR-relevant properties of a material to plain values.
+// Used to remember the "default" state so Reset can restore it. Also
+// records which texture slots were originally populated so toggles can
+// report the enabled default, and captures the original normalScale
+// vector so our single-strength slider can modulate it proportionally
+// (glTF convention is [1, -1] — we preserve the sign of Y).
+function snapshotMat(mat) {
+  const snap = {
+    color: mat.color ? '#' + mat.color.getHexString() : '#ffffff',
+    emissive: mat.emissive ? '#' + mat.emissive.getHexString() : '#000000',
+    emissiveIntensity: (mat.emissiveIntensity != null) ? mat.emissiveIntensity : 1.0,
+    metalness: (mat.metalness != null) ? mat.metalness : 0.0,
+    roughness: (mat.roughness != null) ? mat.roughness : 1.0,
+    opacity: (mat.opacity != null) ? mat.opacity : 1.0,
+    transparent: !!mat.transparent,
+    flatShading: !!mat.flatShading,
+    side: sideToString(mat.side),
+    wireframe: !!mat.wireframe,
+    toneMapped: mat.toneMapped !== false, // default true
+    alphaTest: (mat.alphaTest != null) ? mat.alphaTest : 0,
+    depthWrite: mat.depthWrite !== false,  // default true
+    normalScale: mat.normalScale ? mat.normalScale.x : 1,
+    aoMapIntensity: (mat.aoMapIntensity != null) ? mat.aoMapIntensity : 1,
+    envMapIntensity: (mat.envMapIntensity != null) ? mat.envMapIntensity : 1,
+  };
+  for (const slot of TEXTURE_SLOTS) {
+    snap[slot + 'Enabled'] = !!mat[slot];
+  }
+  return snap;
+}
+
+// Apply a single {prop, value} to a live material. Only sets
+// needsUpdate for changes that actually require shader recompilation
+// (transparent/flatShading toggles, swapping a texture in or out).
+// Texture toggles restore from mat.userData.textureBackups, which is
+// captured at load time in assignMatKeys and survives template cloning
+// via Three's shallow userData copy.
+function applyMatProp(mat, prop, value) {
+  if (!mat) return;
+
+  // Texture enable/disable. Swaps between the original texture (from
+  // the ME_TEXTURE_BACKUPS registry, keyed by matKey so we survive
+  // Three r128's JSON-round-trip userData clone) and a 1×1 stand-in.
+  // Using stand-ins instead of null keeps the shader's USE_MAP defines
+  // stable — no needsUpdate, no recompile, no "undefined.elements"
+  // crash during the next uniform refresh.
+  if (prop.endsWith('Enabled')) {
+    const slot = prop.slice(0, -'Enabled'.length);
+    if (!TEXTURE_SLOTS.includes(slot)) return;
+    const key = mat.userData && mat.userData.matKey;
+    const backup = key && ME_TEXTURE_BACKUPS[key];
+    if (!backup || !backup[slot]) return; // nothing to toggle
+    mat[slot] = value ? backup[slot] : disabledStandinFor(slot);
+    return;
+  }
+
+  switch (prop) {
+    case 'color':
+      if (mat.color) mat.color.set(value);
+      break;
+    case 'emissive':
+      if (mat.emissive) mat.emissive.set(value);
+      break;
+    case 'emissiveIntensity':
+      mat.emissiveIntensity = parseFloat(value);
+      break;
+    case 'metalness':
+      mat.metalness = parseFloat(value);
+      break;
+    case 'roughness':
+      mat.roughness = parseFloat(value);
+      break;
+    case 'opacity':
+      mat.opacity = parseFloat(value);
+      break;
+    case 'transparent': {
+      const newVal = !!value;
+      if (mat.transparent !== newVal) {
+        mat.transparent = newVal;
+        mat.needsUpdate = true;
+      }
+      break;
+    }
+    case 'flatShading': {
+      const newVal = !!value;
+      if (mat.flatShading !== newVal) {
+        mat.flatShading = newVal;
+        mat.needsUpdate = true;
+      }
+      break;
+    }
+
+    // Normal-map strength. The glTF convention encodes a flipped Y
+    // (normalScale = [1, -1]), so we multiply the ORIGINAL x/y sign
+    // snapshot by the slider value instead of hard-coding either axis.
+    case 'normalScale': {
+      if (!mat.normalScale) break;
+      const strength = parseFloat(value);
+      const origX = mat.userData && mat.userData.matKeyDefaults ? mat.userData.matKeyDefaults.normalScale : 1;
+      // Preserve the sign of the Y axis relative to X (glTF flip)
+      const origSignY = (mat.userData && mat.userData.origNormalScaleY < 0) ? -1 : 1;
+      const signX = Math.sign(origX) || 1;
+      mat.normalScale.set(strength * signX, strength * signX * origSignY);
+      break;
+    }
+
+    case 'aoMapIntensity':
+      mat.aoMapIntensity = parseFloat(value);
+      break;
+
+    case 'envMapIntensity':
+      mat.envMapIntensity = parseFloat(value);
+      break;
+
+    case 'side':
+      mat.side = stringToSide(value);
+      mat.needsUpdate = true;
+      break;
+
+    case 'wireframe':
+      mat.wireframe = !!value;
+      break;
+
+    case 'toneMapped': {
+      const newVal = !!value;
+      if (mat.toneMapped !== newVal) {
+        mat.toneMapped = newVal;
+        mat.needsUpdate = true;
+      }
+      break;
+    }
+
+    case 'alphaTest': {
+      const v = parseFloat(value);
+      if (mat.alphaTest !== v) {
+        mat.alphaTest = v;
+        mat.needsUpdate = true; // shader uses a #define for alphaTest
+      }
+      break;
+    }
+
+    case 'depthWrite':
+      mat.depthWrite = !!value;
+      break;
+  }
+}
+
+// Walk a template and assign every material a deterministic
+// matKey = '<pieceKey>:<meshPath>:<materialIndex>'. Captures the
+// original property values into material.userData.matKeyDefaults so
+// Reset can restore them without reloading the GLB, and stashes the
+// original texture refs in the GLOBAL ME_TEXTURE_BACKUPS registry
+// (NOT on userData — Three r128 JSON-clones userData on material
+// clone, which destroys Texture refs). Idempotent.
+function assignMatKeys(template, pieceKey) {
+  const walk = (node, path) => {
+    if (node.isMesh && node.material) {
+      const mats = Array.isArray(node.material) ? node.material : [node.material];
+      mats.forEach((mat, matIdx) => {
+        if (!mat) return;
+        if (!mat.userData) mat.userData = {};
+        const key = `${pieceKey}:${path.join('.')}:${matIdx}`;
+        mat.userData.matKey = key;
+
+        // Global texture registry — shared across template + every
+        // live clone because we key by the matKey string.
+        if (!ME_TEXTURE_BACKUPS[key]) {
+          const backup = {};
+          for (const slot of TEXTURE_SLOTS) {
+            if (mat[slot]) backup[slot] = mat[slot];
+          }
+          ME_TEXTURE_BACKUPS[key] = backup;
+        }
+
+        // Remember the original Y sign of normalScale (plain number,
+        // safe in userData) so the "strength" slider preserves the
+        // glTF [1, -1] handedness across clones.
+        if (mat.normalScale && mat.userData.origNormalScaleY === undefined) {
+          mat.userData.origNormalScaleY = mat.normalScale.y;
+        }
+
+        // Snapshot defaults the FIRST time only — don't overwrite
+        // pristine defaults with already-edited state.
+        if (!mat.userData.matKeyDefaults) {
+          mat.userData.matKeyDefaults = snapshotMat(mat);
+        }
+      });
+    }
+    if (node.children) {
+      node.children.forEach((child, idx) => walk(child, path.concat(idx)));
+    }
+  };
+  walk(template, []);
+}
+
+// Apply every stored override in `store` to a root subtree. Matches
+// materials via material.userData.matKey (which survives cloning via
+// Three's shallow Object.assign userData copy).
+function applyMaterialOverridesTo(root, store) {
+  const overrides = store.getAll();
+  if (!overrides || Object.keys(overrides).length === 0) return;
+  root.traverse(node => {
+    if (!node.isMesh || !node.material) return;
+    const mats = Array.isArray(node.material) ? node.material : [node.material];
+    mats.forEach(mat => {
+      if (!mat.userData || !mat.userData.matKey) return;
+      const patch = overrides[mat.userData.matKey];
+      if (!patch) return;
+      for (const [prop, value] of Object.entries(patch)) {
+        applyMatProp(mat, prop, value);
+      }
+    });
+  });
+}
+
+// Find every live material in the scene whose matKey matches `matKey`.
+// Returns an array (there can be many: all 8 pawns share a template,
+// and after cloning each has its own material instance).
+function findLiveMaterialsByKey(matKey) {
+  const hits = [];
+  if (!piecesGroup) return hits;
+  piecesGroup.traverse(node => {
+    if (!node.isMesh || !node.material) return;
+    const mats = Array.isArray(node.material) ? node.material : [node.material];
+    mats.forEach(mat => {
+      if (mat.userData && mat.userData.matKey === matKey) hits.push(mat);
+    });
+  });
+  return hits;
+}
+
+// Also walk the ModelLoader templates — template-level edits mean
+// future clones inherit. We mutate the template's material directly.
+function findTemplateMaterialByKey(matKey) {
+  if (!ModelLoader || !ModelLoader.loaded) return null;
+  const scan = (root) => {
+    let found = null;
+    root.traverse(node => {
+      if (found || !node.isMesh || !node.material) return;
+      const mats = Array.isArray(node.material) ? node.material : [node.material];
+      mats.forEach(mat => {
+        if (!found && mat.userData && mat.userData.matKey === matKey) found = mat;
+      });
+    });
+    return found;
+  };
+  for (const template of Object.values(ModelLoader.models)) {
+    const m = scan(template);
+    if (m) return m;
+  }
+  if (USE_SEPARATE_DISCS) {
+    for (const disc of Object.values(ModelLoader.discs)) {
+      const m = scan(disc);
+      if (m) return m;
+    }
+  }
+  return null;
+}
+
+// Generate the Copy-as-JSON snippet for the current version's store.
+function materialOverridesAsJS() {
+  const version = MaterialStore.getVersion().toUpperCase();
+  const store = MaterialStore.getAll();
+  const keys = Object.keys(store).sort();
+  if (keys.length === 0) {
+    return `// --- Material Editor snapshot — ${version} — (empty, no edits) ---\nwindow.MATERIAL_OVERRIDES_${version} = {};`;
+  }
+  const lines = [`// --- Material Editor snapshot — ${version} — paste above initThree() ---`];
+  lines.push(`window.MATERIAL_OVERRIDES_${version} = {`);
+  for (const k of keys) {
+    const patch = store[k];
+    const props = Object.entries(patch)
+      .map(([p, v]) => {
+        if (typeof v === 'string') return `${p}: ${JSON.stringify(v)}`;
+        if (typeof v === 'boolean') return `${p}: ${v}`;
+        return `${p}: ${Number(v).toFixed(3)}`;
+      })
+      .join(', ');
+    lines.push(`  ${JSON.stringify(k)}: { ${props} },`);
+  }
+  lines.push(`};`);
+  return lines.join('\n');
+}
+
+// ------------------------------------------------------------
+// MaterialEditor — panel wiring, click-to-pick, slider binding
+// ------------------------------------------------------------
+const MaterialEditor = (() => {
+  let panel = null;
+  let toggle = null;
+  let toast = null;
+  let selectedMatKey = null;
+  let selectedMaterial = null;       // live material reference (scene)
+  let selectedMesh = null;           // the specific mesh that was clicked
+  let open = false;
+
+  function isOpen() { return open; }
+  function isActive() { return open && selectedMatKey !== null; }
+
+  function showPanel() {
+    if (!panel) return;
+    panel.classList.add('open');
+    if (toggle) toggle.classList.add('picking');
+    open = true;
+    updateStatusLine();
+  }
+  function hidePanel() {
+    if (!panel) return;
+    panel.classList.remove('open');
+    if (toggle) toggle.classList.remove('picking');
+    open = false;
+    clearSelection();
+  }
+  function togglePanel() { open ? hidePanel() : showPanel(); }
+
+  function flashToast(msg) {
+    if (!toast) return;
+    toast.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 1400);
+  }
+
+  function clearSelection() {
+    selectedMatKey = null;
+    selectedMaterial = null;
+    selectedMesh = null;
+    updateStatusLine();
+    updateControlsFromSelection();
+  }
+
+  // Intercept a canvas click when the picker panel is open. Returns
+  // true if we consumed the click (game click handling should skip).
+  function tryPick(clientX, clientY) {
+    if (!open) return false;
+    if (!piecesGroup) return false;
+
+    mouse.x = (clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+
+    const hitMeshes = [];
+    piecesGroup.traverse(c => { if (c.isMesh) hitMeshes.push(c); });
+    const intersects = raycaster.intersectObjects(hitMeshes, false);
+    if (intersects.length === 0) {
+      // Clicking empty space deselects (but keeps the panel open).
+      clearSelection();
+      return true;
+    }
+
+    const hit = intersects[0];
+    const mesh = hit.object;
+    const faceMatIdx = (hit.face && hit.face.materialIndex) || 0;
+    const rawMat = Array.isArray(mesh.material) ? mesh.material[faceMatIdx] : mesh.material;
+    if (!rawMat) { clearSelection(); return true; }
+    const matKey = rawMat.userData && rawMat.userData.matKey;
+    if (!matKey) {
+      flashToast('No matKey on this mesh');
+      return true;
+    }
+
+    selectedMatKey = matKey;
+    selectedMaterial = rawMat;
+    selectedMesh = mesh;
+
+    SoundEngine.click && SoundEngine.click();
+    updateStatusLine();
+    updateControlsFromSelection();
+    return true;
+  }
+
+  // Update the "Selected: ..." header in the panel
+  function updateStatusLine() {
+    if (!panel) return;
+    const box = panel.querySelector('.selected-mat');
+    if (!box) return;
+    if (!selectedMatKey) {
+      box.classList.add('empty');
+      box.innerHTML = open
+        ? 'Click any piece mesh to pick a material'
+        : 'Closed';
+      return;
+    }
+    box.classList.remove('empty');
+    // Parse matKey: '<pieceKey>:<meshPath>:<matIdx>'
+    const parts = selectedMatKey.split(':');
+    const pieceKey = parts[0];
+    const meshPath = parts[1] || '';
+    const matIdx = parts[2] || '0';
+    box.innerHTML =
+      '<div class="title">' + escapeHtml(prettyPieceKey(pieceKey)) + '</div>' +
+      '<div class="path">' + escapeHtml(pieceKey) + ' · mesh/' + escapeHtml(meshPath) + ' · mat[' + escapeHtml(matIdx) + ']</div>';
+  }
+
+  function prettyPieceKey(pieceKey) {
+    const names = { K: 'King', Q: 'Queen', B: 'Bishop', N: 'Knight', R: 'Rook', P: 'Pawn' };
+    if (pieceKey === 'disc_w') return 'Hyrule Disc';
+    if (pieceKey === 'disc_b') return 'Ganon Disc';
+    const m = /^([wb])_([KQBNRP])$/.exec(pieceKey);
+    if (!m) return pieceKey;
+    const side = m[1] === 'w' ? 'Hyrule' : 'Ganon';
+    return side + ' ' + (names[m[2]] || m[2]);
+  }
+
+  // Sync slider/color/checkbox values from the selected material's
+  // CURRENT live values (which already include any pending edits).
+  // Also dynamically hides conditional rows (e.g. normal-scale is
+  // only shown when the selected material actually has a normalMap).
+  function updateControlsFromSelection() {
+    if (!panel) return;
+    const enabled = !!selectedMaterial;
+    panel.querySelectorAll('label.row[data-me-control]').forEach(lbl => {
+      lbl.classList.toggle('disabled', !enabled);
+    });
+
+    rebuildTextureGrid();
+
+    // Hide/show conditional rows based on which texture slots the
+    // selected material actually has (either live or backed up via
+    // the global registry, keyed by matKey).
+    const mat = selectedMaterial;
+    const matKey = mat && mat.userData && mat.userData.matKey;
+    const backupEntry = matKey ? ME_TEXTURE_BACKUPS[matKey] : null;
+    panel.querySelectorAll('[data-me-conditional]').forEach(row => {
+      const slot = row.getAttribute('data-me-conditional');
+      const has = mat && (mat[slot] || (backupEntry && backupEntry[slot]));
+      row.classList.toggle('hidden', !has);
+    });
+
+    if (!enabled) return;
+
+    const setVal = (prop, value, fmt) => {
+      const input = panel.querySelector('[data-me="' + prop + '"]');
+      if (!input) return;
+      if (input.type === 'checkbox') {
+        input.checked = !!value;
+      } else {
+        input.value = value;
+      }
+      const valSpan = input.parentElement && input.parentElement.querySelector('.val');
+      if (valSpan && fmt) valSpan.textContent = fmt(value);
+    };
+
+    setVal('color', mat.color ? '#' + mat.color.getHexString() : '#ffffff');
+    setVal('emissive', mat.emissive ? '#' + mat.emissive.getHexString() : '#000000');
+    setVal('emissiveIntensity', (mat.emissiveIntensity != null ? mat.emissiveIntensity : 0).toFixed(2), v => Number(v).toFixed(2));
+    setVal('metalness', (mat.metalness != null ? mat.metalness : 0).toFixed(2), v => Number(v).toFixed(2));
+    setVal('roughness', (mat.roughness != null ? mat.roughness : 1).toFixed(2), v => Number(v).toFixed(2));
+    setVal('envMapIntensity', (mat.envMapIntensity != null ? mat.envMapIntensity : 1).toFixed(2), v => Number(v).toFixed(2));
+    setVal('opacity', (mat.opacity != null ? mat.opacity : 1).toFixed(2), v => Number(v).toFixed(2));
+    setVal('transparent', mat.transparent);
+    setVal('flatShading', mat.flatShading);
+    setVal('alphaTest', (mat.alphaTest != null ? mat.alphaTest : 0).toFixed(2), v => Number(v).toFixed(2));
+
+    // Rendering
+    setVal('side', sideToString(mat.side));
+    setVal('wireframe', mat.wireframe);
+    setVal('toneMapped', mat.toneMapped !== false);
+    setVal('depthWrite', mat.depthWrite !== false);
+  }
+
+  // Per-slot amount-slider configuration. Each texture channel has a
+  // strength knob that maps to the material property Three.js actually
+  // uses when sampling that slot. `map` is special-cased: there is no
+  // continuous diffuse-map intensity in MeshStandardMaterial, so the
+  // slider is a two-position binary (0 → 1×1 white stand-in, 1 → real
+  // texture) that we drive via the existing mapEnabled code path.
+  const CHANNEL_SLIDERS = {
+    map:          { min: 0, max: 1, step: 1,    prop: 'mapEnabled',
+                    read: (mat) => (mat.map && mat.map !== ME_WHITE_TEX) ? 1 : 0,
+                    write: (v) => v > 0 },
+    normalMap:    { min: 0, max: 3, step: 0.01, prop: 'normalScale',
+                    read: (mat) => {
+                      const orig = (mat.userData && mat.userData.matKeyDefaults ? mat.userData.matKeyDefaults.normalScale : 1) || 1;
+                      return mat.normalScale ? Math.abs(mat.normalScale.x / orig) : 1;
+                    },
+                    write: (v) => parseFloat(v) },
+    roughnessMap: { min: 0, max: 1, step: 0.01, prop: 'roughness',
+                    read: (mat) => (mat.roughness != null) ? mat.roughness : 1,
+                    write: (v) => parseFloat(v) },
+    metalnessMap: { min: 0, max: 1, step: 0.01, prop: 'metalness',
+                    read: (mat) => (mat.metalness != null) ? mat.metalness : 0,
+                    write: (v) => parseFloat(v) },
+    emissiveMap:  { min: 0, max: 5, step: 0.01, prop: 'emissiveIntensity',
+                    read: (mat) => (mat.emissiveIntensity != null) ? mat.emissiveIntensity : 0,
+                    write: (v) => parseFloat(v) },
+    aoMap:        { min: 0, max: 2, step: 0.01, prop: 'aoMapIntensity',
+                    read: (mat) => (mat.aoMapIntensity != null) ? mat.aoMapIntensity : 1,
+                    write: (v) => parseFloat(v) },
+  };
+
+  // Rebuild the per-material texture grid. One tex-row per slot the
+  // material actually has, showing: thumbnail, slot name + dimensions,
+  // and an amount slider whose semantics are defined in CHANNEL_SLIDERS.
+  // The slider writes to the channel's natural strength property (e.g.
+  // normalMap → normalScale, aoMap → aoMapIntensity), so editing feels
+  // "per channel" while reusing the same applyMatProp pipeline.
+  function rebuildTextureGrid() {
+    const grid = panel && panel.querySelector('#meTextureGrid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    const mat = selectedMaterial;
+    if (!mat) {
+      grid.innerHTML = '<div class="tex-row empty">Pick a material to see its textures</div>';
+      return;
+    }
+    const matKey = mat.userData && mat.userData.matKey;
+    const backups = (matKey && ME_TEXTURE_BACKUPS[matKey]) || {};
+    const slots = TEXTURE_SLOTS.filter(s => mat[s] || backups[s]);
+    if (slots.length === 0) {
+      grid.innerHTML = '<div class="tex-row empty">This material has no textures</div>';
+      return;
+    }
+    for (const slot of slots) {
+      const standin = disabledStandinFor(slot);
+      const isStandin = mat[slot] === standin;
+      const tex = isStandin ? backups[slot] : (mat[slot] || backups[slot]);
+      const row = document.createElement('div');
+      row.className = 'tex-row';
+
+      const thumb = document.createElement('canvas');
+      thumb.className = 'thumb';
+      thumb.width = 32;
+      thumb.height = 32;
+      drawTextureThumb(thumb, tex);
+
+      const meta = document.createElement('div');
+      meta.className = 'tex-meta';
+      const dimsStr = tex && tex.image && tex.image.width
+        ? `${tex.image.width}×${tex.image.height}`
+        : 'canvas';
+      meta.innerHTML = '<span class="slot">' + escapeHtml(slot) + '</span><span class="dims">' + escapeHtml(dimsStr) + '</span>';
+
+      const cfg = CHANNEL_SLIDERS[slot];
+      const sliderWrap = document.createElement('div');
+      sliderWrap.className = 'tex-slider-wrap';
+      const slider = document.createElement('input');
+      slider.type = 'range';
+      slider.min = String(cfg.min);
+      slider.max = String(cfg.max);
+      slider.step = String(cfg.step);
+      slider.value = String(cfg.read(mat));
+      slider.title = 'Amount for ' + slot + ' (writes ' + cfg.prop + ')';
+      const valSpan = document.createElement('span');
+      valSpan.className = 'tex-val';
+      valSpan.textContent = slot === 'map'
+        ? (cfg.read(mat) > 0 ? 'ON' : 'OFF')
+        : Number(cfg.read(mat)).toFixed(2);
+      slider.addEventListener('input', () => {
+        const v = cfg.write(slider.value);
+        applyEdit(cfg.prop, v);
+        valSpan.textContent = slot === 'map'
+          ? (parseFloat(slider.value) > 0 ? 'ON' : 'OFF')
+          : Number(slider.value).toFixed(2);
+      });
+      sliderWrap.appendChild(slider);
+      sliderWrap.appendChild(valSpan);
+
+      row.appendChild(thumb);
+      row.appendChild(meta);
+      row.appendChild(sliderWrap);
+      grid.appendChild(row);
+    }
+  }
+
+  function drawTextureThumb(canvas, tex) {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (!tex || !tex.image) {
+      ctx.fillStyle = '#2A1A05';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#8a6a3a';
+      ctx.font = '9px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('?', canvas.width / 2, canvas.height / 2 + 3);
+      return;
+    }
+    try {
+      ctx.drawImage(tex.image, 0, 0, canvas.width, canvas.height);
+    } catch (e) {
+      // Some textures (e.g. compressed, video) won't draw directly
+      ctx.fillStyle = '#2A1A05';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+  }
+
+  // User moved a slider or changed a color → apply everywhere
+  function applyEdit(prop, value) {
+    if (!selectedMatKey) return;
+
+    // 1. Update the store
+    MaterialStore.set(selectedMatKey, prop, value);
+
+    // 2. Walk every live scene material with this matKey and apply
+    findLiveMaterialsByKey(selectedMatKey).forEach(mat => applyMatProp(mat, prop, value));
+
+    // 3. Also mutate the template so future clones inherit
+    const tplMat = findTemplateMaterialByKey(selectedMatKey);
+    if (tplMat) applyMatProp(tplMat, prop, value);
+
+    // 4. Cascade: editing metalness ALSO bypasses the metalnessMap.
+    // Tripo3D GLBs ship with a near-black metalness channel (avg B
+    // ≈ 7/255), so `mat.metalness * metalnessMap.b ≈ 0` and the slider
+    // reads as a no-op regardless of value. Swapping the map to the
+    // 1×1 white stand-in lets the scalar take full effect. We only
+    // cascade the first time (when the enable flag is still unset in
+    // the store) so we don't fight a user who deliberately re-enabled
+    // the map via the texture grid. Not applied to roughness because
+    // the Tripo3D roughnessMap already has meaningful per-pixel
+    // variation (avg ≈ 54%) that the user probably wants to preserve.
+    if (prop === 'metalness') {
+      const enableProp = 'metalnessMapEnabled';
+      const store = MaterialStore.get(selectedMatKey) || {};
+      if (store[enableProp] === undefined && tplMat && tplMat.metalnessMap) {
+        MaterialStore.set(selectedMatKey, enableProp, false);
+        findLiveMaterialsByKey(selectedMatKey).forEach(m => applyMatProp(m, enableProp, false));
+        applyMatProp(tplMat, enableProp, false);
+        rebuildTextureGrid();
+      }
+    }
+
+    // 5. Update the val readout in the UI
+    const input = panel && panel.querySelector('[data-me="' + prop + '"]');
+    if (input) {
+      const valSpan = input.parentElement && input.parentElement.querySelector('.val');
+      if (valSpan && typeof value === 'number') valSpan.textContent = Number(value).toFixed(2);
+      else if (valSpan && typeof value === 'boolean') valSpan.textContent = value ? 'ON' : 'OFF';
+    }
+  }
+
+  // Restore a single matKey to its snapshot defaults
+  function resetMat() {
+    if (!selectedMatKey) { flashToast('Nothing selected'); return; }
+    const tplMat = findTemplateMaterialByKey(selectedMatKey);
+    const defaults = tplMat && tplMat.userData && tplMat.userData.matKeyDefaults;
+    if (!defaults) { flashToast('No defaults captured'); return; }
+
+    MaterialStore.clearMat(selectedMatKey);
+    // Apply defaults to template and all live clones
+    for (const [prop, value] of Object.entries(defaults)) {
+      applyMatProp(tplMat, prop, value);
+      findLiveMaterialsByKey(selectedMatKey).forEach(mat => applyMatProp(mat, prop, value));
+    }
+    updateControlsFromSelection();
+    flashToast('Material reset');
+  }
+
+  // Restore every matKey that shares the same pieceKey prefix
+  function resetPiece() {
+    if (!selectedMatKey) { flashToast('Nothing selected'); return; }
+    const pieceKey = selectedMatKey.split(':')[0];
+    const store = MaterialStore.getAll();
+    const keysToReset = Object.keys(store).filter(k => k.startsWith(pieceKey + ':'));
+    if (keysToReset.length === 0) { flashToast('No edits on this piece'); return; }
+    keysToReset.forEach(key => {
+      const tplMat = findTemplateMaterialByKey(key);
+      const defaults = tplMat && tplMat.userData && tplMat.userData.matKeyDefaults;
+      if (!defaults) return;
+      MaterialStore.clearMat(key);
+      for (const [prop, value] of Object.entries(defaults)) {
+        applyMatProp(tplMat, prop, value);
+        findLiveMaterialsByKey(key).forEach(mat => applyMatProp(mat, prop, value));
+      }
+    });
+    updateControlsFromSelection();
+    flashToast('Piece reset (' + keysToReset.length + ' mats)');
+  }
+
+  // Nuke everything: clear store, reset every edited material to defaults
+  function resetAll() {
+    const store = MaterialStore.getAll();
+    const editedKeys = Object.keys(store);
+    if (editedKeys.length === 0) { flashToast('Nothing to reset'); return; }
+    if (!confirm('Reset ALL material edits (' + editedKeys.length + ')? This cannot be undone.')) return;
+    editedKeys.forEach(key => {
+      const tplMat = findTemplateMaterialByKey(key);
+      const defaults = tplMat && tplMat.userData && tplMat.userData.matKeyDefaults;
+      if (!defaults) return;
+      for (const [prop, value] of Object.entries(defaults)) {
+        applyMatProp(tplMat, prop, value);
+        findLiveMaterialsByKey(key).forEach(mat => applyMatProp(mat, prop, value));
+      }
+    });
+    MaterialStore.clearAll();
+    updateControlsFromSelection();
+    flashToast('All material edits cleared');
+  }
+
+  async function copyAsJSON() {
+    const js = materialOverridesAsJS();
+    try {
+      await navigator.clipboard.writeText(js);
+      flashToast('Copied to clipboard!');
+    } catch (e) {
+      console.log(js);
+      flashToast('Copied to console');
+    }
+  }
+
+  function init() {
+    panel = document.getElementById('materialEditor');
+    toggle = document.getElementById('materialEditorToggle');
+    toast = document.getElementById('meToast');
+    if (!panel || !toggle) return;
+
+    toggle.addEventListener('click', togglePanel);
+
+    window.addEventListener('keydown', (e) => {
+      if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA')) return;
+      if (e.key === 'u' || e.key === 'U') togglePanel();
+      else if (e.key === 'Escape' && panel.classList.contains('open')) hidePanel();
+    });
+
+    // Bind every control
+    panel.querySelectorAll('[data-me]').forEach(input => {
+      const prop = input.dataset.me;
+      const handler = () => {
+        if (!selectedMatKey) return;
+        let value;
+        if (input.type === 'checkbox') value = input.checked;
+        else if (input.type === 'range') value = parseFloat(input.value);
+        else value = input.value;
+        applyEdit(prop, value);
+      };
+      input.addEventListener('input', handler);
+      input.addEventListener('change', handler);
+    });
+
+    // Toolbar buttons
+    const btnCopy = document.getElementById('meCopyBtn');
+    const btnResetMat = document.getElementById('meResetMatBtn');
+    const btnResetPiece = document.getElementById('meResetPieceBtn');
+    const btnResetAll = document.getElementById('meResetAllBtn');
+    if (btnCopy) btnCopy.addEventListener('click', copyAsJSON);
+    if (btnResetMat) btnResetMat.addEventListener('click', resetMat);
+    if (btnResetPiece) btnResetPiece.addEventListener('click', resetPiece);
+    if (btnResetAll) btnResetAll.addEventListener('click', resetAll);
+
+    updateStatusLine();
+    updateControlsFromSelection();
+  }
+
+  return { init, tryPick, isOpen, isActive, clearSelection };
+})();
+
+// Expose so handleClick can preempt
+window.MaterialEditor = MaterialEditor;
+
+// ============================================================
 // INPUT HANDLING
 // ============================================================
 
@@ -6222,6 +7632,10 @@ function handleHover(clientX, clientY) {
 }
 
 function handleClick(clientX, clientY) {
+  // Material Editor picker preempts gameplay clicks while the panel
+  // is open. Returns true if it consumed the click.
+  if (window.MaterialEditor && MaterialEditor.isOpen() && MaterialEditor.tryPick(clientX, clientY)) return;
+
   if (!gameActive || cpuThinking || pendingPromotion) return;
   if (gameMode === 'online' && Chess.getCurrentTurn() !== myColor) return;
   if (animations.length > 0) return;
@@ -6311,8 +7725,9 @@ function selectPiece(row, col) {
   selectedPiece = { row, col };
   selectedMoves = moves;
 
-  // Fairy-dust burst replaces the old gold ring + emissive glow
-  spawnFairyBurst(row, col, 22);
+  // Selection feedback: a white RingGeometry under the selected piece
+  // that pulses in sync with the capture rings. No particle burst.
+  showSelectionRing(row, col);
   showValidMoves(moves);
 
   // GAME JUICE: Anticipation (50ms wind-up scale to 0.95) then pop up.
@@ -6371,6 +7786,7 @@ function deselectPiece() {
   selectedPiece = null;
   selectedMoves = [];
   clearValidMoveMarkers();
+  removeSelectionRing();
 }
 
 function executePlayerMove(toRow, toCol) {
@@ -6411,6 +7827,12 @@ function executePlayerMove(toRow, toCol) {
 }
 
 function executeMove(move, callback) {
+  // Defensive: the selection ring is normally removed by deselectPiece
+  // (called from executePlayerMove before we get here), but AI, online
+  // replays, and other move sources skip that path. Clear unconditionally
+  // so the ring never lingers after a piece begins moving.
+  removeSelectionRing();
+
   const fromRow = move.fromRow;
   const fromCol = move.fromCol;
   const toRow = move.toRow;
@@ -7162,13 +8584,18 @@ document.getElementById('btnMenu').addEventListener('click', () => {
   // Mark body so the styled promo/gameover dialogs apply
   document.body.classList.add('u2-active');
 
-  // ----- Audio controls (standalone widget for mobile, in-rail for desktop) -----
+  // ----- Audio controls --------------------------------------------
+  // Desktop: in-rail widget (railAudio / railMuteBtn / railSlider)
+  // Mobile:  a single mbtn-mute docked in the bottom action bar
+  //          (btnMobileMute). The old floating #audioWidget is still
+  //          wired below for back-compat but is CSS-hidden on mobile.
   const widget       = document.getElementById('audioWidget');
   const muteBtn      = document.getElementById('audioMuteBtn');
   const slider       = document.getElementById('audioMasterSlider');
   const railAudio    = document.getElementById('railAudio');
   const railMuteBtn  = document.getElementById('railMuteBtn');
   const railSlider   = document.getElementById('railMasterSlider');
+  const mobileMute   = document.getElementById('btnMobileMute');
 
   function syncAudioUI() {
     const s = SoundEngine.getSettings();
@@ -7177,6 +8604,7 @@ document.getElementById('btnMenu').addEventListener('click', () => {
     if (widget)     widget.classList.toggle('muted', s.muted);
     if (railSlider) railSlider.value = v;
     if (railAudio)  railAudio.classList.toggle('muted', s.muted);
+    if (mobileMute) mobileMute.classList.toggle('muted', s.muted);
   }
   syncAudioUI();
 
@@ -7197,6 +8625,7 @@ document.getElementById('btnMenu').addEventListener('click', () => {
   }
   bindMute(muteBtn);
   bindMute(railMuteBtn);
+  bindMute(mobileMute);
   bindSlider(slider);
   bindSlider(railSlider);
 
@@ -7554,6 +8983,7 @@ document.getElementById('btnBackMenu').addEventListener('click', () => {
 // ============================================================
 initThree();
 initSceneEditor();
+MaterialEditor.init();
 </script>
 </body>
 </html>
