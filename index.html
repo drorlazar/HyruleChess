@@ -2969,9 +2969,18 @@ function buildRuneDiscTexture(side) {
   c.width = c.height = 512;
   const ctx = c.getContext('2d');
 
-  const conf = side === 'w'
-    ? { bg1: '#D8E4EE', bg2: '#A8BACA', rim: '#6C7D8E', glow: '#5AE3FF', ink: '#FFFFFF' }
-    : { bg1: '#3A1A14', bg2: '#1A0A08', rim: '#5A2A1A', glow: '#FF5A2E', ink: '#FFC8A0' };
+  let conf;
+  if (side === 'w') {
+    // Hyrule disc: 'royal' = royal blue + gold, subtle (default).
+    // 'sheikah' = original cyan rune plate (kept as fallback).
+    conf = HYRULE_DISC_STYLE === 'sheikah'
+      ? { bg1: '#D8E4EE', bg2: '#A8BACA', rim: '#6C7D8E', glow: '#5AE3FF', ink: '#FFFFFF' }
+      // Deep royal blue center → near-black edge; gold rim + accents.
+      // Colors are pre-darkened to survive scene lighting + toneMapping.
+      : { bg1: '#18296C', bg2: '#05081F', rim: '#8A6818', glow: '#C69A2E', ink: '#E8C75C' };
+  } else {
+    conf = { bg1: '#3A1A14', bg2: '#1A0A08', rim: '#5A2A1A', glow: '#FF5A2E', ink: '#FFC8A0' };
+  }
 
   // Radial base — dark center to slightly lighter edge
   const grd = ctx.createRadialGradient(256, 256, 20, 256, 256, 250);
@@ -3070,19 +3079,30 @@ function buildRuneDisc(side) {
   const thickness = 0.08; // flat, ~5:1 diameter:height
   const topTex = buildRuneDiscTexture(side);
 
-  const conf = side === 'w'
-    ? { rim: 0x6C7D8E, emissive: 0x4FB8FF, emissiveIntensity: 0.55 }
-    : { rim: 0x3A1510, emissive: 0xC0301A, emissiveIntensity: 0.45 };
+  // Royal style is a non-emissive painted disc — the previous Sheikah +
+  // full-texture emissiveMap path gets nuked by UnrealBloom and washes
+  // the disc to white. We pass `useEmissive: false` to short-circuit it.
+  let conf;
+  if (side === 'w') {
+    conf = HYRULE_DISC_STYLE === 'sheikah'
+      ? { rim: 0x6C7D8E, emissive: 0x4FB8FF, emissiveIntensity: 0.55, useEmissive: true }
+      : { rim: 0xB8902E, emissive: 0x000000, emissiveIntensity: 0.0, useEmissive: false };
+  } else {
+    conf = { rim: 0x3A1510, emissive: 0xC0301A, emissiveIntensity: 0.45, useEmissive: true };
+  }
 
   const geo = new THREE.CylinderGeometry(radius, radius * 0.96, thickness, 40);
-  const topMat = new THREE.MeshStandardMaterial({
+  const topMatOpts = {
     map: topTex,
-    emissive: new THREE.Color(conf.emissive),
-    emissiveMap: topTex,
-    emissiveIntensity: conf.emissiveIntensity,
-    roughness: 0.45,
-    metalness: 0.35,
-  });
+    roughness: conf.useEmissive ? 0.45 : 0.8,
+    metalness: conf.useEmissive ? 0.35 : 0.15,
+  };
+  if (conf.useEmissive) {
+    topMatOpts.emissive = new THREE.Color(conf.emissive);
+    topMatOpts.emissiveMap = topTex;
+    topMatOpts.emissiveIntensity = conf.emissiveIntensity;
+  }
+  const topMat = new THREE.MeshStandardMaterial(topMatOpts);
   const sideMat = new THREE.MeshStandardMaterial({
     color: new THREE.Color(conf.rim),
     roughness: 0.55,
@@ -3117,6 +3137,21 @@ const MODEL_VERSION = (() => {
 // which are composited under each piece at placement time.
 const MODEL_DIR = MODEL_VERSION === 'v2' ? 'assets/models/v2' : 'assets/models';
 const USE_SEPARATE_DISCS = (MODEL_VERSION === 'v2');
+
+// v2 Hyrule disc style. 'royal' (royal blue + gold, low glow) is the new
+// default. 'sheikah' (cyan + triforce, high glow) is kept as a fallback —
+// toggle via URL param ?disc=sheikah or localStorage.
+const HYRULE_DISC_STYLE = (() => {
+  try {
+    const p = new URLSearchParams(location.search).get('disc');
+    if (p === 'sheikah' || p === 'royal') {
+      localStorage.setItem('hyruleChess.hyruleDiscStyle', p);
+      return p;
+    }
+  } catch (e) {}
+  try { return localStorage.getItem('hyruleChess.hyruleDiscStyle') || 'royal'; }
+  catch (e) { return 'royal'; }
+})();
 
 const ModelLoader = {
   models: {},
@@ -6443,9 +6478,21 @@ function executeMove(move, callback) {
           }
 
           newMesh.position.set(pos.x, 0, pos.z);
-          newChar.rotation.y = 0; // face camera
+          // Match the baseRotY calculation in placePieces — otherwise queens
+          // (and anything that isn't Epona) come out 90° sideways on promotion.
+          let promoKnightOffset = 0;
+          if (newPiece.type === 'N' && newPiece.color === 'w') {
+            promoKnightOffset = USE_SEPARATE_DISCS ? -Math.PI / 2 : Math.PI / 2;
+          }
+          const newBaseRotY = (newPiece.color === 'w' ? Math.PI / 2 : -Math.PI / 2) + promoKnightOffset;
+          if (USE_SEPARATE_DISCS) {
+            newChar.rotation.y = newBaseRotY;
+          } else {
+            newMesh.rotation.y = newBaseRotY;
+          }
           newMesh.userData = {
             row: toRow, col: toCol, type: newPiece.type, color: newPiece.color,
+            baseRotY: newBaseRotY,
             baseScale: newBaseScale,
             charMesh: USE_SEPARATE_DISCS ? newChar : null,
             discHeight: discHeight,
