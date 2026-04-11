@@ -2273,7 +2273,8 @@ canvas { display: block; }
 
   <div class="toolbar">
     <button id="seCopyBtn" title="Copy settings as JavaScript">Copy as JS</button>
-    <button id="seResetBtn" title="Reset to defaults">Reset</button>
+    <button id="seResetBtn" title="Reset to defaults (in-session)">Reset</button>
+    <button id="seClearStorageBtn" title="Remove the Scene Editor localStorage entry and reload the page">Clear storage</button>
   </div>
 </div>
 
@@ -2381,7 +2382,8 @@ canvas { display: block; }
     <button id="meResetMatBtn" title="Reset the selected material to its default">Reset mat</button>
     <button id="meResetPieceBtn" title="Reset every material on the selected piece">Reset piece</button>
     <button id="meCopyBtn" title="Copy all edits as a JS snippet">Copy JSON</button>
-    <button id="meResetAllBtn" title="Clear the entire material store for this version">Reset all</button>
+    <button id="meResetAllBtn" title="Clear the in-memory store for this version">Reset all</button>
+    <button id="meClearStorageBtn" title="Remove both material-editor localStorage entries (v1 + v2) and reload">Clear storage</button>
   </div>
   <div class="env-hint">Scene has a subtle PMREM IBL — metalness + env intensity drive the reflective highlight. Crank emissiveIntensity to drive bloom.</div>
 </div>
@@ -6713,6 +6715,17 @@ function initSceneEditor() {
     toast.classList.add('show');
     setTimeout(() => toast.classList.remove('show'), 1400);
   });
+
+  // Clear storage — wipes the Scene Editor localStorage entry and
+  // reloads so the next session starts from the hardcoded defaults
+  // in initThree() (useful after bumping SCENE_DEFAULTS to make sure
+  // you're really seeing the new baseline, not a stale save).
+  const seClearBtn = document.getElementById('seClearStorageBtn');
+  if (seClearBtn) seClearBtn.addEventListener('click', () => {
+    if (!confirm('Remove Scene Editor localStorage and reload?')) return;
+    try { localStorage.removeItem(SCENE_EDITOR_KEY); } catch (e) {}
+    location.reload();
+  });
 }
 
 // ============================================================
@@ -7567,10 +7580,22 @@ const MaterialEditor = (() => {
     const btnResetMat = document.getElementById('meResetMatBtn');
     const btnResetPiece = document.getElementById('meResetPieceBtn');
     const btnResetAll = document.getElementById('meResetAllBtn');
+    const btnClearStorage = document.getElementById('meClearStorageBtn');
     if (btnCopy) btnCopy.addEventListener('click', copyAsJSON);
     if (btnResetMat) btnResetMat.addEventListener('click', resetMat);
     if (btnResetPiece) btnResetPiece.addEventListener('click', resetPiece);
     if (btnResetAll) btnResetAll.addEventListener('click', resetAll);
+    // Clear storage — wipes BOTH material-editor localStorage entries
+    // (v1 + v2) and reloads so the templates re-initialize from scratch,
+    // discarding every accumulated edit across model versions.
+    if (btnClearStorage) btnClearStorage.addEventListener('click', () => {
+      if (!confirm('Remove ALL Material Editor localStorage (v1 + v2) and reload?')) return;
+      try {
+        localStorage.removeItem(MATERIAL_EDITOR_KEY_PREFIX + 'v1');
+        localStorage.removeItem(MATERIAL_EDITOR_KEY_PREFIX + 'v2');
+      } catch (e) {}
+      location.reload();
+    });
 
     updateStatusLine();
     updateControlsFromSelection();
